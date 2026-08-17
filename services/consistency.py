@@ -40,58 +40,60 @@ def check_consistency(profile, financials, case01, case02=None, case03=None):
     members03 = set(case03.get("members", case03.get("nodes", [])))
     members_ok = (not members02 and not members03) or (members02.issubset(nodes) and members03.issubset(nodes))
     add(6, "Thành viên vận hành mạng nhất quán", members_ok, f"Case 01 có {len(nodes)} thành viên; thành viên Case 02 và Case 03 không được tự ý nằm ngoài mạng")
-
     add(7, "Cơ chế đồng thuận và ma trận quyền được sử dụng nhất quán", bool(arch.get("consensus")) and len(permissions) > 0, f"Đồng thuận = {arch.get('consensus')}; số dòng quyền = {len(permissions)}")
 
     kyc01 = any("kyc" in str(r).lower() for r in data01)
-    kyc02 = bool(case02.get("kyc_reuse")) or "kyc" in str(case02).lower()
-    kyc03 = bool(case03.get("kyc_reuse")) or "kyc" in str(case03).lower()
-    add(8, "Hệ thống KYC Case 01 được sử dụng trong Case 02 và Case 03", kyc01 and kyc02 and kyc03, "Kiểm tra dấu vết KYC xuyên suốt ba Case")
+    kyc02 = bool(case02.get("kyc_reuse"))
+    kyc03 = bool(case03.get("kyc_reuse"))
+    add(8, "Hệ thống KYC Case 01 được sử dụng trong Case 02 và Case 03", kyc01 and kyc02 and kyc03, "KYC phải được khai báo là dữ liệu hoặc quy trình dùng lại ở cả hai Case sau")
 
     invalid_storage = [r.get("Loại dữ liệu", "") for r in data01 if bool(r.get("On-chain")) == bool(r.get("Off-chain"))]
-    add(9, "Dữ liệu On-chain và Off-chain được phân loại nhất quán", not invalid_storage, "Không có dữ liệu chọn đồng thời hoặc không chọn vị trí lưu trữ" if not invalid_storage else ", ".join(invalid_storage))
+    add(9, "Dữ liệu On-chain và Off-chain được phân loại nhất quán", not invalid_storage, "Không có dòng chọn đồng thời hoặc không chọn vị trí lưu trữ" if not invalid_storage else ", ".join(invalid_storage))
 
     key01 = "khóa" in str(governance).lower() or "key" in str(governance).lower()
     key03 = bool(str(case03.get("lost_key", "")).strip())
-    add(10, "Cơ chế quản lý khóa và xử lý mất khóa nhất quán", key01 and key03, "Case 01 phải có quản trị khóa và Case 03 phải có cơ chế mất khóa")
+    add(10, "Cơ chế quản lý khóa và xử lý mất khóa nhất quán", key01 and key03, "Case 01 phải mô tả quản trị khóa và Case 03 phải có cơ chế mất khóa")
 
     oracle02 = case02.get("oracle", case02.get("oracles", []))
     oracle03 = case03.get("oracle", case03.get("oracles", []))
-    add(11, "Oracle Case 02 được tái sử dụng trong Case 03", bool(oracle02) and bool(oracle03), f"Oracle Case 02 = {len(oracle02) if isinstance(oracle02, list) else 1}; Oracle Case 03 = {len(oracle03) if isinstance(oracle03, list) else 1}")
+    add(11, "Oracle Case 02 được tái sử dụng trong Case 03", bool(str(oracle02).strip()) and bool(str(oracle03).strip()), "Phải có Oracle ở Case 02 và dẫn chiếu hoặc tái sử dụng trong Case 03")
 
     pause01 = bool(str(governance.get("Tạm dừng hệ thống", "")).strip())
-    pause02 = bool(case02.get("pause")) or bool(case02.get("emergency_pause")) or "tạm dừng" in str(case02).lower()
+    pause02 = bool(case02.get("emergency_pause"))
     pause03 = bool(str(case03.get("pause", "")).strip())
     add(12, "Cơ chế tạm dừng khẩn cấp nhất quán", pause01 and pause02 and pause03, "Đối chiếu quyền tạm dừng giữa Case 01, Case 02 và Case 03")
 
     upgrade01 = str(governance.get("Nâng cấp hợp đồng", "")).strip()
     upgrade02 = str(case02.get("upgrade_authority", "")).strip()
     upgrade03 = str(case03.get("upgrade_authority", "")).strip()
-    add(13, "Quyền nâng cấp hợp đồng không tạo mâu thuẫn quản trị", bool(upgrade01 or upgrade02 or upgrade03), "Phải xác định rõ chủ thể có quyền nâng cấp và ghi Change Log nếu thay đổi")
+    add(13, "Quyền nâng cấp hợp đồng không tạo mâu thuẫn quản trị", bool(upgrade01 and upgrade02 and upgrade03), "Ba Case phải xác định được chủ thể nâng cấp; nếu khác nhau phải giải thích trong Change Log")
 
     annual_income = float(case03.get("_annual_income", 0))
-    add(14, "Dòng tiền dự án đủ để trả ngân hàng và nhà đầu tư", dscr > 0 and annual_income >= 0, f"DSCR = {dscr:.2f}; thu nhập nhà đầu tư khai báo = {annual_income / 1_000_000_000:.2f} tỷ/năm")
+    if annual_income <= 0 and float(case03.get("annual_return_rate", 0)) > 0:
+        annual_income = external * 1_000_000_000 * float(case03.get("annual_return_rate", 0))
+    ebitda = float(financials.get("EBITDA1", 0))
+    debt_service = float(financials.get("DebtService1", 0))
+    cashflow_ok = ebitda >= debt_service + annual_income
+    add(14, "Dòng tiền dự án đủ để trả ngân hàng và nhà đầu tư", cashflow_ok, f"EBITDA = {ebitda:.2f} tỷ; nghĩa vụ ngân hàng = {debt_service:.2f} tỷ; thu nhập nhà đầu tư = {annual_income / 1_000_000_000:.2f} tỷ/năm")
 
     priority = str(case03.get("payment_priority", "")).strip()
     add(15, "Thứ tự ưu tiên thanh toán được xác định", bool(priority), "Phải nêu rõ ưu tiên giữa nghĩa vụ ngân hàng và nhà đầu tư")
 
     shared = bool(case03.get("collateral_shared", False))
     add(16, "Tài sản bảo đảm không bị sử dụng đồng thời cho khoản vay và token", not shared, "Không dùng chung tài sản" if not shared else "Đang khai báo dùng chung tài sản")
-
     priority_rights = str(case03.get("priority_rights", "")).strip()
     add(17, "Quyền ưu tiên nếu dùng chung tài sản được xác định", (not shared) or bool(priority_rights), "Không dùng chung" if not shared else "Đã xác định quyền ưu tiên" if priority_rights else "Thiếu quyền ưu tiên")
 
     risks01 = {str(r.get("Rủi ro", "")).strip() for r in case01.get("risks", []) if str(r.get("Rủi ro", "")).strip()}
     risks02 = {str(r.get("Rủi ro", "")).strip() for r in case02.get("risks", []) if str(r.get("Rủi ro", "")).strip()}
     risks03 = {str(r.get("Rủi ro", "")).strip() for r in case03.get("risks", []) if str(r.get("Rủi ro", "")).strip()}
-    add(18, "Rủi ro Case 01 được chuyển sang Case 02", bool(risks01 & risks02) if risks01 and risks02 else False, f"Giao nhau = {len(risks01 & risks02)} rủi ro")
-    add(19, "Rủi ro Case 02 được công bố cho nhà đầu tư Case 03", bool(risks02 & risks03) if risks02 and risks03 else False, f"Giao nhau = {len(risks02 & risks03)} rủi ro")
+    add(18, "Rủi ro Case 01 được chuyển sang Case 02", bool(risks01) and bool(risks02) and bool(risks01 & risks02), f"Case 01 = {len(risks01)}; Case 02 = {len(risks02)}; giao nhau = {len(risks01 & risks02)}")
+    add(19, "Rủi ro Case 02 được công bố cho nhà đầu tư Case 03", bool(risks02) and bool(risks03) and bool(risks02 & risks03), f"Case 02 = {len(risks02)}; Case 03 = {len(risks03)}; giao nhau = {len(risks02 & risks03)}")
 
     legal = str(case03.get("legal_structure", "")).strip()
-    add(20, "Không có mâu thuẫn giữa kiến trúc kỹ thuật và cấu trúc pháp lý", bool(legal), "Cần mô tả tổ chức phát hành, quyền pháp lý của token và quan hệ với tài sản cơ sở")
-
+    add(20, "Không có mâu thuẫn giữa kiến trúc kỹ thuật và cấu trúc pháp lý", bool(legal), "Phải mô tả tổ chức phát hành, quyền pháp lý của token và quan hệ với tài sản cơ sở")
     legal_gap = str(case03.get("legal_technical_gap", "")).strip()
-    add(21, "Đã xác định nội dung blockchain có thể làm nhưng pháp luật chưa chắc công nhận", bool(legal_gap), "Cần ghi rõ khoảng cách giữa khả năng kỹ thuật và hiệu lực pháp lý")
+    add(21, "Đã xác định nội dung blockchain có thể làm nhưng pháp luật chưa chắc công nhận", bool(legal_gap), "Phải ghi rõ khoảng cách giữa khả năng kỹ thuật và hiệu lực pháp lý")
 
     conclusion01 = bool(str(case01.get("conclusion", "")).strip())
     conclusion02 = bool(str(case02.get("conclusion", "")).strip())
