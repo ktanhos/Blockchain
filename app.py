@@ -12,7 +12,7 @@ from services.consistency import check_consistency
 
 st.set_page_config(page_title="Blockchain Finance Case Study", page_icon="⛓️", layout="wide")
 st.title("Blockchain trong Tài chính và Ngân hàng")
-st.caption("Phiên bản 1.0 · Case 01 + Case 02 + Case 03 + Consistency Checker")
+st.caption("Phiên bản 1.1 · Case 01 + Case 02 + Case 03 + Consistency Checker")
 
 st.sidebar.header("Hồ sơ sinh viên")
 student_id = st.sidebar.text_input("Mã số sinh viên", value="")
@@ -35,7 +35,6 @@ if "project_id" not in st.session_state or st.session_state.get("project_id") !=
     st.session_state.case03 = existing["case03"] if existing and existing.get("case03") else default_case03(profile, calculate_financials(profile))
 
 case01 = st.session_state.case01
-case03 = st.session_state.case03
 financials = calculate_financials(profile)
 
 st.sidebar.success("Hồ sơ đã được cá nhân hóa")
@@ -45,7 +44,7 @@ def save_all():
 
 if st.sidebar.button("Lưu toàn bộ", use_container_width=True):
     save_all()
-    st.sidebar.success("Đã lưu Case 01 và Case 03 vào SQLite")
+    st.sidebar.success("Đã lưu toàn bộ dữ liệu dự án")
 
 st.subheader("Hồ sơ case cá nhân")
 cols = st.columns(4)
@@ -68,10 +67,35 @@ case01_tab, case02_tab, case03_tab, check_tab = st.tabs([
 
 with case01_tab:
     st.header("Case 01 · Thiết kế kiến trúc Blockchain")
+
     st.subheader("1. As-is Process")
-    as_is_df = pd.DataFrame(case01["as_is"])
-    as_is_edited = st.data_editor(as_is_df, num_rows="dynamic", use_container_width=True, key="as_is_editor")
+    st.caption("Có thể sửa trực tiếp từng ô, thêm dòng, xóa dòng và thay đổi thứ tự. Nhập số thứ tự mong muốn vào cột Thứ tự rồi hệ thống sẽ sắp xếp lại quy trình.")
+    as_is_df = pd.DataFrame(case01.get("as_is", []))
+    if "Thứ tự" not in as_is_df.columns:
+        as_is_df.insert(0, "Thứ tự", range(1, len(as_is_df) + 1))
+    else:
+        as_is_df["Thứ tự"] = pd.to_numeric(as_is_df["Thứ tự"], errors="coerce")
+        missing = as_is_df["Thứ tự"].isna()
+        as_is_df.loc[missing, "Thứ tự"] = range(1, missing.sum() + 1)
+    as_is_df["Thứ tự"] = as_is_df["Thứ tự"].astype(int)
+
+    as_is_edited = st.data_editor(
+        as_is_df,
+        num_rows="dynamic",
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            "Thứ tự": st.column_config.NumberColumn("Thứ tự", min_value=1, step=1, help="Số càng nhỏ thì bước càng đứng trước."),
+            "Bước": st.column_config.NumberColumn("Bước", disabled=True),
+        },
+        key="as_is_editor",
+    )
+    as_is_edited["Thứ tự"] = pd.to_numeric(as_is_edited["Thứ tự"], errors="coerce")
+    as_is_edited["Thứ tự"] = as_is_edited["Thứ tự"].fillna(range(1, len(as_is_edited) + 1)).astype(int)
+    as_is_edited = as_is_edited.sort_values("Thứ tự", kind="stable").reset_index(drop=True)
+    as_is_edited["Bước"] = range(1, len(as_is_edited) + 1)
     case01["as_is"] = as_is_edited.to_dict("records")
+
     step_count = len(case01["as_is"])
     if step_count >= 8:
         st.success(f"Đạt yêu cầu số bước: {step_count} bước")
@@ -81,14 +105,31 @@ with case01_tab:
     st.write(" → ".join(flow))
 
     st.subheader("2. Đánh giá CSDL tập trung so với Blockchain/DLT")
-    assessment_edited = st.data_editor(pd.DataFrame(case01["assessment"]), column_config={"CSDL tập trung": st.column_config.NumberColumn(min_value=1, max_value=5, step=1), "Blockchain/DLT": st.column_config.NumberColumn(min_value=1, max_value=5, step=1)}, use_container_width=True, key="assessment_editor")
+    st.caption("Có thể sửa điểm từ 1 đến 5, sửa tiêu chí, sửa giải thích, thêm tiêu chí hoặc xóa tiêu chí.")
+    assessment_df = pd.DataFrame(case01.get("assessment", []))
+    assessment_edited = st.data_editor(
+        assessment_df,
+        num_rows="dynamic",
+        column_config={
+            "CSDL tập trung": st.column_config.NumberColumn(min_value=1, max_value=5, step=1),
+            "Blockchain/DLT": st.column_config.NumberColumn(min_value=1, max_value=5, step=1),
+        },
+        use_container_width=True,
+        hide_index=True,
+        key="assessment_editor",
+    )
     case01["assessment"] = assessment_edited.to_dict("records")
-    score_db = pd.to_numeric(assessment_edited["CSDL tập trung"], errors="coerce").fillna(0).sum()
-    score_chain = pd.to_numeric(assessment_edited["Blockchain/DLT"], errors="coerce").fillna(0).sum()
+    score_db = pd.to_numeric(assessment_edited.get("CSDL tập trung", pd.Series(dtype=float)), errors="coerce").fillna(0).sum()
+    score_chain = pd.to_numeric(assessment_edited.get("Blockchain/DLT", pd.Series(dtype=float)), errors="coerce").fillna(0).sum()
     c1, c2, c3 = st.columns(3)
     c1.metric("Tổng điểm CSDL", f"{score_db:.0f}")
     c2.metric("Tổng điểm Blockchain/DLT", f"{score_chain:.0f}")
-    c3.info("Blockchain có điểm cao hơn" if score_chain > score_db else "CSDL có điểm cao hơn" if score_chain < score_db else "Hai phương án bằng điểm")
+    if score_chain > score_db:
+        c3.info("Blockchain có điểm cao hơn")
+    elif score_chain < score_db:
+        c3.info("CSDL có điểm cao hơn")
+    else:
+        c3.info("Hai phương án bằng điểm")
 
     st.subheader("3. Kiến trúc mạng Blockchain")
     arch = case01["architecture"]
@@ -98,18 +139,44 @@ with case01_tab:
     ac1, ac2 = st.columns(2)
     arch["decision"] = ac1.selectbox("Quyết định", decision_options, index=decision_options.index(arch.get("decision", "Hybrid")))
     arch["blockchain_type"] = ac2.selectbox("Mô hình", model_options, index=model_options.index(arch.get("blockchain_type", "Blockchain liên minh")))
-    arch["nodes"] = st.multiselect("Các thành viên/nút tham gia", MEMBERS, default=[x for x in arch.get("nodes", []) if x in MEMBERS])
+
+    custom_members = arch.setdefault("custom_members", [])
+    member_options = list(dict.fromkeys(MEMBERS + custom_members))
+    arch["nodes"] = st.multiselect("Các thành viên/nút tham gia", member_options, default=[x for x in arch.get("nodes", []) if x in member_options])
+    new_member = st.text_input("Thêm thành viên/nút tùy chỉnh", key="new_member_name", placeholder="Ví dụ: Công ty bảo hiểm A")
+    if st.button("Thêm thành viên", key="add_member"):
+        new_member = new_member.strip()
+        if not new_member:
+            st.warning("Chưa nhập tên thành viên.")
+        elif new_member in member_options:
+            st.warning("Thành viên này đã tồn tại.")
+        else:
+            custom_members.append(new_member)
+            if new_member not in arch["nodes"]:
+                arch["nodes"].append(new_member)
+            case01["permissions"].append({"Chủ thể": new_member, "Đọc": True, "Ghi": False, "Xác thực": False, "Quản trị": False, "Tạm dừng": False})
+            st.rerun()
+
     ac3, ac4 = st.columns(2)
     arch["consensus"] = ac3.selectbox("Cơ chế đồng thuận", consensus_options, index=consensus_options.index(arch.get("consensus", "PBFT hoặc biến thể")))
-    arch["validator_count"] = ac4.number_input("Số nút xác thực", min_value=1, max_value=max(1, len(arch["nodes"])), value=min(int(arch.get("validator_count", 4)), max(1, len(arch["nodes"]))), step=1)
+    max_validators = max(1, len(arch["nodes"]))
+    arch["validator_count"] = ac4.number_input("Số nút xác thực", min_value=1, max_value=max_validators, value=min(int(arch.get("validator_count", 4)), max_validators), step=1)
     arch["completion"] = st.text_input("Thời điểm giao dịch được xem là hoàn tất", value=arch.get("completion", ""))
 
     st.subheader("4. Ma trận quyền truy cập")
-    perm_edited = st.data_editor(pd.DataFrame(case01["permissions"]), use_container_width=True, key="permissions_editor")
+    st.caption("Có thể sửa quyền trực tiếp. Các thành viên tùy chỉnh được thêm ở phần Kiến trúc mạng sẽ xuất hiện tại đây.")
+    permission_members = set(arch.get("nodes", []))
+    permissions = case01.get("permissions", [])
+    existing_permission_members = {row.get("Chủ thể") for row in permissions}
+    for member in permission_members - existing_permission_members:
+        permissions.append({"Chủ thể": member, "Đọc": True, "Ghi": False, "Xác thực": False, "Quản trị": False, "Tạm dừng": False})
+    case01["permissions"] = permissions
+    perm_edited = st.data_editor(case01["permissions"], num_rows="dynamic", use_container_width=True, hide_index=True, key="permissions_editor")
     case01["permissions"] = perm_edited.to_dict("records")
 
     st.subheader("5. Phân loại dữ liệu On-chain và Off-chain")
-    data_edited = st.data_editor(pd.DataFrame(case01["data"]), use_container_width=True, key="data_editor")
+    st.caption("Có thể sửa tên dữ liệu, thêm loại dữ liệu, xóa loại dữ liệu và thay đổi cách lưu trữ.")
+    data_edited = st.data_editor(pd.DataFrame(case01["data"]), num_rows="dynamic", use_container_width=True, hide_index=True, key="data_editor")
     case01["data"] = data_edited.to_dict("records")
     invalid_storage = [row.get("Loại dữ liệu", "") for row in case01["data"] if bool(row.get("On-chain")) == bool(row.get("Off-chain"))]
     if invalid_storage:
@@ -121,7 +188,8 @@ with case01_tab:
         gov[key] = st.text_area(label, value=gov.get(key, ""), key=f"gov_{key}")
 
     st.subheader("7. Risk Register")
-    risk_edited = st.data_editor(risk_dataframe(case01["risks"]), num_rows="dynamic", column_config={"P": st.column_config.NumberColumn(min_value=1, max_value=5, step=1), "I": st.column_config.NumberColumn(min_value=1, max_value=5, step=1), "Điểm": st.column_config.NumberColumn(disabled=True)}, use_container_width=True, key="risk_editor")
+    st.caption("Có thể sửa tên rủi ro, nguyên nhân, xác suất, tác động, biện pháp và chủ sở hữu; có thể thêm hoặc xóa dòng. Điểm rủi ro tự tính bằng xác suất nhân tác động.")
+    risk_edited = st.data_editor(risk_dataframe(case01["risks"]), num_rows="dynamic", column_config={"P": st.column_config.NumberColumn(min_value=1, max_value=5, step=1), "I": st.column_config.NumberColumn(min_value=1, max_value=5, step=1), "Điểm": st.column_config.NumberColumn(disabled=True)}, use_container_width=True, hide_index=True, key="risk_editor")
     case01["risks"] = risk_edited.to_dict("records")
 
     st.subheader("8. Kết luận Case 01")
