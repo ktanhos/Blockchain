@@ -11,18 +11,9 @@ INSTRUMENT_OPTIONS = [
 ]
 
 LIFECYCLE_STEPS = [
-    "Xác định tài sản cơ sở",
-    "Thẩm định tài chính và pháp lý",
-    "Thành lập cấu trúc phát hành",
-    "Kiểm toán hợp đồng thông minh",
-    "KYC/AML nhà đầu tư",
-    "Nhà đầu tư chuyển tiền",
-    "Phát hành token theo Delivery versus Payment",
-    "Tiền được giữ hoặc giải ngân",
-    "Dự án báo cáo sử dụng vốn",
-    "Phân phối lãi, cổ tức hoặc lợi nhuận",
-    "Chuyển nhượng có kiểm soát",
-    "Mua lại, đáo hạn hoặc tiêu hủy token",
+    "Xác định tài sản cơ sở", "Thẩm định tài chính và pháp lý", "Thành lập cấu trúc phát hành", "Kiểm toán hợp đồng thông minh",
+    "KYC/AML nhà đầu tư", "Nhà đầu tư chuyển tiền", "Phát hành token theo Delivery versus Payment", "Tiền được giữ hoặc giải ngân",
+    "Dự án báo cáo sử dụng vốn", "Phân phối lãi, cổ tức hoặc lợi nhuận", "Chuyển nhượng có kiểm soát", "Mua lại, đáo hạn hoặc tiêu hủy token",
 ]
 
 RISK_DEFAULT = [
@@ -44,25 +35,14 @@ RISK_DEFAULT = [
 
 
 def default_case03(profile: dict, financials: dict) -> dict:
-    instrument = profile["funding_instrument"]
     return {
-        "business_name": "Doanh nghiệp khách hàng của FutureBank",
-        "project_name": "Dự án mở rộng hoạt động kinh doanh",
-        "platform_name": "FutureBank Blockchain Finance Network",
-        "token_name": "FBF Token",
-        "token_code": "FBF",
-        "instrument": instrument,
-        "asset_base": "Tài sản, dòng tiền và quyền tài chính của dự án theo công cụ được chọn",
-        "issue_price": 1000000.0,
-        "target_investor": "Cá nhân và tổ chức phù hợp với điều kiện pháp lý",
-        "minimum_investment": 10000000.0,
-        "term_years": max(1, int(financials["T"])),
-        "annual_return_rate": max(0.06, float(financials["r"])),
-        "voting": "Không",
-        "transfer_restrictions": "KYC/AML; thời gian khóa; giới hạn sở hữu",
-        "custody": "Bên lưu ký thứ ba hoặc cơ chế lưu ký được phê duyệt",
-        "buyback": "Theo điều kiện và lịch mua lại được công bố trong Term Sheet",
-        "lost_key": "Khôi phục qua bên lưu ký hoặc quy trình xác minh đa bên",
+        "business_name": "Doanh nghiệp khách hàng của FutureBank", "project_name": "Dự án mở rộng hoạt động kinh doanh", "platform_name": "FutureBank Blockchain Finance Network",
+        "token_name": "FBF Token", "token_code": "FBF", "instrument": profile["funding_instrument"],
+        "asset_base": "Tài sản, dòng tiền và quyền tài chính của dự án theo công cụ được chọn", "issue_price": 1000000.0,
+        "target_investor": "Cá nhân và tổ chức phù hợp với điều kiện pháp lý", "minimum_investment": 10000000.0,
+        "term_years": max(1, int(financials["T"])), "annual_return_rate": max(0.06, float(financials["r"])), "voting": "Không",
+        "transfer_restrictions": "KYC/AML; thời gian khóa; giới hạn sở hữu", "custody": "Bên lưu ký thứ ba hoặc cơ chế lưu ký được phê duyệt",
+        "buyback": "Theo điều kiện và lịch mua lại được công bố trong Term Sheet", "lost_key": "Khôi phục qua bên lưu ký hoặc quy trình xác minh đa bên",
         "pause": "Đa chữ ký hoặc quyết định của cơ quan có thẩm quyền",
         "lifecycle": [{"Bước": i + 1, "Giai đoạn": step, "Chủ thể": "", "Điều kiện": "", "Kết quả": ""} for i, step in enumerate(LIFECYCLE_STEPS)],
         "risks": [{"Rủi ro": r, "Nguyên nhân": c, "P": p, "I": i, "Điểm": p * i, "Biện pháp kiểm soát": control, "Chủ sở hữu": owner} for r, c, p, i, control, owner in RISK_DEFAULT],
@@ -71,22 +51,21 @@ def default_case03(profile: dict, financials: dict) -> dict:
 
 
 def token_metrics(case03: dict, financials: dict) -> dict:
-    target = float(financials["ExternalCapital"])
+    target_billion = float(financials["ExternalCapital"])
+    target_vnd = target_billion * 1_000_000_000
     price = float(case03.get("issue_price", 0))
-    token_count = math.ceil(target / price) if price > 0 else 0
+    token_count = math.ceil(target_vnd / price) if price > 0 else 0
     actual_raise = token_count * price
     annual_rate = float(case03.get("annual_return_rate", 0))
-    annual_income = target * annual_rate
-    return {"ExternalCapital": target, "TokenCount": token_count, "IssuePrice": price, "ActualRaise": actual_raise, "AnnualIncome": annual_income, "AnnualReturnRate": annual_rate, "TermYears": int(case03.get("term_years", 1))}
+    annual_income = target_vnd * annual_rate
+    return {"ExternalCapital": target_billion, "TargetVND": target_vnd, "TokenCount": token_count, "IssuePrice": price, "ActualRaise": actual_raise, "AnnualIncome": annual_income, "AnnualReturnRate": annual_rate, "TermYears": int(case03.get("term_years", 1))}
 
 
 def investor_cashflows(case03: dict, financials: dict) -> list[float]:
     m = token_metrics(case03, financials)
-    initial = -float(m["ExternalCapital"])
-    income = float(m["AnnualIncome"])
-    term = int(m["TermYears"])
-    flows = [initial] + [income] * max(0, term - 1) + [income + float(m["ExternalCapital"])]
-    return flows
+    income = m["AnnualIncome"]
+    term = m["TermYears"]
+    return [-m["TargetVND"]] + [income] * max(0, term - 1) + [income + m["TargetVND"]]
 
 
 def npv(rate: float, cashflows: list[float]) -> float:
@@ -114,18 +93,20 @@ def investor_benefits(case03: dict, financials: dict, discount_rate: float = 0.1
     flows = investor_cashflows(case03, financials)
     m = token_metrics(case03, financials)
     total_income = m["AnnualIncome"] * m["TermYears"]
-    roi = (total_income / m["ExternalCapital"]) if m["ExternalCapital"] else 0
+    roi = total_income / m["TargetVND"] if m["TargetVND"] else 0
     return {"Coupon hoặc lợi nhuận năm": m["AnnualIncome"], "Tổng thu nhập trong kỳ": total_income, "ROI tích lũy": roi, "NPV": npv(discount_rate, flows), "IRR": irr(flows), "Thời gian hoàn vốn": m["TermYears"]}
 
 
 def investment_scenarios(case03: dict, financials: dict) -> pd.DataFrame:
     m = token_metrics(case03, financials)
-    base = {"Kịch bản": "Cơ sở", "Doanh thu thay đổi": 0.0, "Giá trị tài sản cơ sở": 0.0, "Giá token": 0.0, "Thanh khoản": "Theo kế hoạch", "Khả năng phân phối": 1.0, "Khả năng mua lại": "Theo Term Sheet"}
-    growth = {"Kịch bản": "Tăng trưởng", "Doanh thu thay đổi": 0.20, "Giá trị tài sản cơ sở": 0.15, "Giá token": 0.15, "Thanh khoản": "Cải thiện", "Khả năng phân phối": 1.0, "Khả năng mua lại": "Cải thiện nếu dòng tiền cho phép"}
-    decline = {"Kịch bản": "Suy giảm", "Doanh thu thay đổi": -0.25, "Giá trị tài sản cơ sở": 0.0, "Giá token": -0.30, "Thanh khoản": "Thấp", "Khả năng phân phối": 0.75, "Khả năng mua lại": "Có thể trì hoãn"}
-    df = pd.DataFrame([base, growth, decline])
+    df = pd.DataFrame([
+        {"Kịch bản": "Cơ sở", "Doanh thu thay đổi": 0.0, "Giá trị tài sản cơ sở": 0.0, "Giá token": 0.0, "Thanh khoản": "Theo kế hoạch", "Khả năng phân phối": 1.0, "Khả năng mua lại": "Theo Term Sheet"},
+        {"Kịch bản": "Tăng trưởng", "Doanh thu thay đổi": 0.20, "Giá trị tài sản cơ sở": 0.15, "Giá token": 0.15, "Thanh khoản": "Cải thiện", "Khả năng phân phối": 1.0, "Khả năng mua lại": "Cải thiện nếu dòng tiền cho phép"},
+        {"Kịch bản": "Suy giảm", "Doanh thu thay đổi": -0.25, "Giá trị tài sản cơ sở": 0.0, "Giá token": -0.30, "Thanh khoản": "Thấp", "Khả năng phân phối": 0.75, "Khả năng mua lại": "Có thể trì hoãn"},
+    ])
     df["Thu nhập năm dự kiến"] = m["AnnualIncome"] * df["Khả năng phân phối"]
     df["Giá trị token giả định"] = m["IssuePrice"] * (1 + df["Giá token"])
+    df["Giá trị tài sản cơ sở giả định"] = m["TargetVND"] * (1 + df["Giá trị tài sản cơ sở"])
     return df
 
 
