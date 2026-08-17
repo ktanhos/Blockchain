@@ -1,10 +1,16 @@
 import math
 
+from services.instruction_engine import validate_case01, validate_case02, validate_case03
+
 
 def check_consistency(profile, financials, case01, case02=None, case03=None):
     case02 = case02 or {}
     case03 = case03 or {}
     checks = []
+
+    instruction01 = validate_case01(case01)
+    instruction02 = validate_case02(case02)
+    instruction03 = validate_case03(case03)
 
     def add(number, name, ok, detail):
         checks.append({"STT": number, "Hạng mục": name, "Trạng thái": "Đạt" if ok else "Lỗi", "Chi tiết": detail})
@@ -17,9 +23,6 @@ def check_consistency(profile, financials, case01, case02=None, case03=None):
     v = float(financials.get("V", 0))
     loan = float(financials.get("LoanAmount", 0))
     external = float(financials.get("ExternalCapital", 0))
-    collateral = float(financials.get("CollateralValue", 0))
-    dscr = float(financials.get("DSCR", 0))
-    ltv = float(financials.get("LTV", 0))
 
     add(1, "Doanh nghiệp, dự án và ngân hàng nhất quán", bool(profile.get("industry")) and bool(profile.get("business_type")), "Hồ sơ cá nhân hóa tồn tại và FutureBank là ngân hàng xuyên suốt")
     add(2, "Tổng nhu cầu vốn được giữ nguyên", abs(v - loan - external) < 1e-9, f"V = {v:.2f}; khoản vay + vốn còn thiếu = {loan + external:.2f} tỷ")
@@ -48,7 +51,7 @@ def check_consistency(profile, financials, case01, case02=None, case03=None):
     add(8, "Hệ thống KYC Case 01 được sử dụng trong Case 02 và Case 03", kyc01 and kyc02 and kyc03, "KYC phải được khai báo là dữ liệu hoặc quy trình dùng lại ở cả hai Case sau")
 
     invalid_storage = [r.get("Loại dữ liệu", "") for r in data01 if bool(r.get("On-chain")) == bool(r.get("Off-chain"))]
-    add(9, "Dữ liệu On-chain và Off-chain được phân loại nhất quán", not invalid_storage, "Không có dòng chọn đồng thời hoặc không chọn vị trí lưu trữ" if not invalid_storage else ", ".join(invalid_storage))
+    add(9, "Dữ liệu On-chain và Off-chain được phân loại nhất quán", bool(instruction01["On Chain Off Chain"]) and not invalid_storage, "Không có dòng chọn đồng thời hoặc không chọn vị trí lưu trữ" if not invalid_storage else ", ".join(invalid_storage))
 
     key01 = "khóa" in str(governance).lower() or "key" in str(governance).lower()
     key03 = bool(str(case03.get("lost_key", "")).strip())
