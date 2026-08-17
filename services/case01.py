@@ -1,14 +1,14 @@
 import pandas as pd
 
 AS_IS_DEFAULT = [
-    {"Bước": 1, "Chủ thể": "Doanh nghiệp", "Hành động": "Khởi tạo hồ sơ/giao dịch", "Dữ liệu": "Hồ sơ doanh nghiệp", "Hệ thống": "Hệ thống doanh nghiệp", "Thời gian": "", "Nhập lại": "Có", "Đối chiếu": "Không", "Rủi ro": "Dữ liệu không đồng nhất", "Trách nhiệm": "Doanh nghiệp"},
-    {"Bước": 2, "Chủ thể": "Ngân hàng", "Hành động": "Tiếp nhận và kiểm tra KYC", "Dữ liệu": "KYC", "Hệ thống": "Core/KYC", "Thời gian": "", "Nhập lại": "Có", "Đối chiếu": "Có", "Rủi ro": "KYC lặp lại", "Trách nhiệm": "Ngân hàng"},
-    {"Bước": 3, "Chủ thể": "Nhà cung cấp", "Hành động": "Phát hành hóa đơn/chứng từ", "Dữ liệu": "Hóa đơn", "Hệ thống": "Hệ thống nhà cung cấp", "Thời gian": "", "Nhập lại": "Có", "Đối chiếu": "Có", "Rủi ro": "Hóa đơn giả hoặc trùng", "Trách nhiệm": "Nhà cung cấp"},
-    {"Bước": 4, "Chủ thể": "Logistics", "Hành động": "Xác nhận giao hàng", "Dữ liệu": "Trạng thái giao hàng", "Hệ thống": "Hệ thống logistics", "Thời gian": "", "Nhập lại": "Có", "Đối chiếu": "Có", "Rủi ro": "Sai trạng thái", "Trách nhiệm": "Logistics"},
-    {"Bước": 5, "Chủ thể": "Ngân hàng", "Hành động": "Đối chiếu hồ sơ và phê duyệt", "Dữ liệu": "Hồ sơ tín dụng", "Hệ thống": "Core tín dụng", "Thời gian": "", "Nhập lại": "Có", "Đối chiếu": "Có", "Rủi ro": "Đối chiếu thủ công", "Trách nhiệm": "Ngân hàng"},
-    {"Bước": 6, "Chủ thể": "Đơn vị bảo hiểm/thẩm định", "Hành động": "Xác nhận tài sản hoặc bảo hiểm", "Dữ liệu": "Tài sản bảo đảm", "Hệ thống": "Hệ thống đối tác", "Thời gian": "", "Nhập lại": "Có", "Đối chiếu": "Có", "Rủi ro": "Trạng thái tài sản chậm cập nhật", "Trách nhiệm": "Đơn vị cung cấp dữ liệu"},
-    {"Bước": 7, "Chủ thể": "Ngân hàng", "Hành động": "Giải ngân", "Dữ liệu": "Lệnh giải ngân", "Hệ thống": "Core banking", "Thời gian": "", "Nhập lại": "Có", "Đối chiếu": "Có", "Rủi ro": "Giải ngân sai điều kiện", "Trách nhiệm": "Ngân hàng"},
-    {"Bước": 8, "Chủ thể": "Ngân hàng/Doanh nghiệp", "Hành động": "Theo dõi dòng tiền và tất toán", "Dữ liệu": "Thanh toán, dư nợ", "Hệ thống": "Core banking", "Thời gian": "", "Nhập lại": "Có", "Đối chiếu": "Có", "Rủi ro": "Sai lệch thu nợ/phân bổ", "Trách nhiệm": "Ngân hàng"},
+    {"Thứ tự": 1, "Bước": 1, "Chủ thể": "Doanh nghiệp", "Hành động": "Khởi tạo hồ sơ/giao dịch", "Dữ liệu": "Hồ sơ doanh nghiệp", "Hệ thống": "Hệ thống doanh nghiệp", "Thời gian": "", "Nhập lại": "Có", "Đối chiếu": "Không", "Rủi ro": "Dữ liệu không đồng nhất", "Trách nhiệm": "Doanh nghiệp"},
+    {"Thứ tự": 2, "Bước": 2, "Chủ thể": "Ngân hàng", "Hành động": "Tiếp nhận và kiểm tra KYC", "Dữ liệu": "KYC", "Hệ thống": "Core/KYC", "Thời gian": "", "Nhập lại": "Có", "Đối chiếu": "Có", "Rủi ro": "KYC lặp lại", "Trách nhiệm": "Ngân hàng"},
+    {"Thứ tự": 3, "Bước": 3, "Chủ thể": "Nhà cung cấp", "Hành động": "Phát hành hóa đơn/chứng từ", "Dữ liệu": "Hóa đơn", "Hệ thống": "Hệ thống nhà cung cấp", "Thời gian": "", "Nhập lại": "Có", "Đối chiếu": "Có", "Rủi ro": "Hóa đơn giả hoặc trùng", "Trách nhiệm": "Nhà cung cấp"},
+    {"Thứ tự": 4, "Bước": 4, "Chủ thể": "Logistics", "Hành động": "Xác nhận giao hàng", "Dữ liệu": "Trạng thái giao hàng", "Hệ thống": "Hệ thống logistics", "Thời gian": "", "Nhập lại": "Có", "Đối chiếu": "Có", "Rủi ro": "Sai trạng thái", "Trách nhiệm": "Logistics"},
+    {"Thứ tự": 5, "Bước": 5, "Chủ thể": "Ngân hàng", "Hành động": "Đối chiếu hồ sơ và phê duyệt", "Dữ liệu": "Hồ sơ tín dụng", "Hệ thống": "Core tín dụng", "Thời gian": "", "Nhập lại": "Có", "Đối chiếu": "Có", "Rủi ro": "Đối chiếu thủ công", "Trách nhiệm": "Ngân hàng"},
+    {"Thứ tự": 6, "Bước": 6, "Chủ thể": "Đơn vị bảo hiểm/thẩm định", "Hành động": "Xác nhận tài sản hoặc bảo hiểm", "Dữ liệu": "Tài sản bảo đảm", "Hệ thống": "Hệ thống đối tác", "Thời gian": "", "Nhập lại": "Có", "Đối chiếu": "Có", "Rủi ro": "Trạng thái tài sản chậm cập nhật", "Trách nhiệm": "Đơn vị cung cấp dữ liệu"},
+    {"Thứ tự": 7, "Bước": 7, "Chủ thể": "Ngân hàng", "Hành động": "Giải ngân", "Dữ liệu": "Lệnh giải ngân", "Hệ thống": "Core banking", "Thời gian": "", "Nhập lại": "Có", "Đối chiếu": "Có", "Rủi ro": "Giải ngân sai điều kiện", "Trách nhiệm": "Ngân hàng"},
+    {"Thứ tự": 8, "Bước": 8, "Chủ thể": "Ngân hàng/Doanh nghiệp", "Hành động": "Theo dõi dòng tiền và tất toán", "Dữ liệu": "Thanh toán, dư nợ", "Hệ thống": "Core banking", "Thời gian": "", "Nhập lại": "Có", "Đối chiếu": "Có", "Rủi ro": "Sai lệch thu nợ/phân bổ", "Trách nhiệm": "Ngân hàng"},
 ]
 
 BLOCKCHAIN_CRITERIA = [
@@ -36,7 +36,7 @@ def default_case01():
     return {
         "as_is": AS_IS_DEFAULT,
         "assessment": [{"Tiêu chí": c, "CSDL tập trung": 3, "Blockchain/DLT": 3, "Giải thích": ""} for c in BLOCKCHAIN_CRITERIA],
-        "architecture": {"decision": "Hybrid", "blockchain_type": "Blockchain liên minh", "nodes": MEMBERS[:], "consensus": "PBFT hoặc biến thể", "validator_count": 4, "completion": "Khi đạt ngưỡng xác nhận của các nút hợp lệ"},
+        "architecture": {"decision": "Hybrid", "blockchain_type": "Blockchain liên minh", "nodes": MEMBERS[:], "custom_members": [], "consensus": "PBFT hoặc biến thể", "validator_count": 4, "completion": "Khi đạt ngưỡng xác nhận của các nút hợp lệ"},
         "permissions": [{"Chủ thể": m, "Đọc": True, "Ghi": False, "Xác thực": False, "Quản trị": False, "Tạm dừng": False} for m in MEMBERS],
         "data": [{"Loại dữ liệu": d, "On-chain": False, "Off-chain": True, "Chủ thể được truy cập": "", "Lý do": ""} for d in DATA_TYPES],
         "governance": {"Chủ sở hữu nền tảng": "FutureBank và liên minh thành viên", "Tiếp nhận thành viên": "Hội đồng quản trị mạng", "Thay đổi quy tắc": "Biểu quyết theo quy chế liên minh", "Nâng cấp hợp đồng": "Quy trình phê duyệt nhiều bên", "Tạm dừng hệ thống": "Quyền hạn chế theo quy chế khẩn cấp", "Trách nhiệm giao dịch sai": "Theo nguồn dữ liệu và quy trình phê duyệt", "Bồi thường": "Theo thỏa thuận thành viên", "Tranh chấp": "Theo thỏa thuận và pháp luật áp dụng", "Lưu trữ dữ liệu": "Theo yêu cầu pháp lý và chính sách dữ liệu", "Thành viên rời mạng": "Thu hồi quyền và xử lý dữ liệu/quyền truy cập"},
