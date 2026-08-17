@@ -42,7 +42,7 @@ st.sidebar.success("Hồ sơ đã được cá nhân hóa")
 def save_all():
     save_project(project_id, student_id, profile, st.session_state.case01, {}, st.session_state.case03)
 
-if st.sidebar.button("Lưu toàn bộ", use_container_width=True):
+if st.sidebar.button("Lưu toàn bộ"):
     save_all()
     st.sidebar.success("Đã lưu toàn bộ dữ liệu dự án")
 
@@ -55,7 +55,7 @@ profile_df = pd.DataFrame({
     "Thông số": ["Ngành hoạt động", "Loại hình doanh nghiệp", "Vấn đề ngân hàng trọng tâm", "Công cụ huy động vốn Case 03"],
     "Giá trị": [profile["industry"], profile["business_type"], profile["banking_problem"], profile["funding_instrument"]],
 })
-st.dataframe(profile_df, use_container_width=True, hide_index=True)
+st.dataframe(profile_df, width="stretch", hide_index=True)
 st.divider()
 
 case01_tab, case02_tab, case03_tab, check_tab = st.tabs([
@@ -76,13 +76,14 @@ with case01_tab:
     else:
         as_is_df["Thứ tự"] = pd.to_numeric(as_is_df["Thứ tự"], errors="coerce")
         missing = as_is_df["Thứ tự"].isna()
-        as_is_df.loc[missing, "Thứ tự"] = range(1, missing.sum() + 1)
+        if missing.any():
+            as_is_df.loc[missing, "Thứ tự"] = range(1, int(missing.sum()) + 1)
     as_is_df["Thứ tự"] = as_is_df["Thứ tự"].astype(int)
 
     as_is_edited = st.data_editor(
         as_is_df,
         num_rows="dynamic",
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
         column_config={
             "Thứ tự": st.column_config.NumberColumn("Thứ tự", min_value=1, step=1, help="Số càng nhỏ thì bước càng đứng trước."),
@@ -91,7 +92,10 @@ with case01_tab:
         key="as_is_editor",
     )
     as_is_edited["Thứ tự"] = pd.to_numeric(as_is_edited["Thứ tự"], errors="coerce")
-    as_is_edited["Thứ tự"] = as_is_edited["Thứ tự"].fillna(range(1, len(as_is_edited) + 1)).astype(int)
+    missing = as_is_edited["Thứ tự"].isna()
+    if missing.any():
+        as_is_edited.loc[missing, "Thứ tự"] = range(1, int(missing.sum()) + 1)
+    as_is_edited["Thứ tự"] = as_is_edited["Thứ tự"].astype(int)
     as_is_edited = as_is_edited.sort_values("Thứ tự", kind="stable").reset_index(drop=True)
     as_is_edited["Bước"] = range(1, len(as_is_edited) + 1)
     case01["as_is"] = as_is_edited.to_dict("records")
@@ -114,7 +118,7 @@ with case01_tab:
             "CSDL tập trung": st.column_config.NumberColumn(min_value=1, max_value=5, step=1),
             "Blockchain/DLT": st.column_config.NumberColumn(min_value=1, max_value=5, step=1),
         },
-        use_container_width=True,
+        width="stretch",
         hide_index=True,
         key="assessment_editor",
     )
@@ -171,12 +175,12 @@ with case01_tab:
     for member in permission_members - existing_permission_members:
         permissions.append({"Chủ thể": member, "Đọc": True, "Ghi": False, "Xác thực": False, "Quản trị": False, "Tạm dừng": False})
     case01["permissions"] = permissions
-    perm_edited = st.data_editor(case01["permissions"], num_rows="dynamic", use_container_width=True, hide_index=True, key="permissions_editor")
+    perm_edited = st.data_editor(case01["permissions"], num_rows="dynamic", width="stretch", hide_index=True, key="permissions_editor")
     case01["permissions"] = perm_edited.to_dict("records")
 
     st.subheader("5. Phân loại dữ liệu On-chain và Off-chain")
     st.caption("Có thể sửa tên dữ liệu, thêm loại dữ liệu, xóa loại dữ liệu và thay đổi cách lưu trữ.")
-    data_edited = st.data_editor(pd.DataFrame(case01["data"]), num_rows="dynamic", use_container_width=True, hide_index=True, key="data_editor")
+    data_edited = st.data_editor(pd.DataFrame(case01["data"]), num_rows="dynamic", width="stretch", hide_index=True, key="data_editor")
     case01["data"] = data_edited.to_dict("records")
     invalid_storage = [row.get("Loại dữ liệu", "") for row in case01["data"] if bool(row.get("On-chain")) == bool(row.get("Off-chain"))]
     if invalid_storage:
@@ -189,7 +193,7 @@ with case01_tab:
 
     st.subheader("7. Risk Register")
     st.caption("Có thể sửa tên rủi ro, nguyên nhân, xác suất, tác động, biện pháp và chủ sở hữu; có thể thêm hoặc xóa dòng. Điểm rủi ro tự tính bằng xác suất nhân tác động.")
-    risk_edited = st.data_editor(risk_dataframe(case01["risks"]), num_rows="dynamic", column_config={"P": st.column_config.NumberColumn(min_value=1, max_value=5, step=1), "I": st.column_config.NumberColumn(min_value=1, max_value=5, step=1), "Điểm": st.column_config.NumberColumn(disabled=True)}, use_container_width=True, hide_index=True, key="risk_editor")
+    risk_edited = st.data_editor(risk_dataframe(case01["risks"]), num_rows="dynamic", column_config={"P": st.column_config.NumberColumn(min_value=1, max_value=5, step=1), "I": st.column_config.NumberColumn(min_value=1, max_value=5, step=1), "Điểm": st.column_config.NumberColumn(disabled=True)}, width="stretch", hide_index=True, key="risk_editor")
     case01["risks"] = risk_edited.to_dict("records")
 
     st.subheader("8. Kết luận Case 01")
@@ -213,7 +217,7 @@ with check_tab:
     case03_saved = existing_project.get("case03") or st.session_state.case03
     results = check_consistency(profile, financials, st.session_state.case01, case02_saved, case03_saved)
     result_df = pd.DataFrame(results)
-    st.dataframe(result_df, use_container_width=True, hide_index=True)
+    st.dataframe(result_df, width="stretch", hide_index=True)
     errors = sum(x["Trạng thái"] == "Lỗi" for x in results)
     c1, c2 = st.columns(2)
     c1.metric("Tổng kiểm tra", len(results))
