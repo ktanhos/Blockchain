@@ -2,22 +2,15 @@
 
 Ứng dụng Streamlit hỗ trợ sinh viên thực hiện chuỗi Case Study Blockchain trong Tài chính và Ngân hàng.
 
-## Phiên bản 0.2
+## Phiên bản 0.4
 
 Đã có:
 
-- Nhập mã số sinh viên và tự xác định D1, D2, D3, D4.
-- Tự xác định ngành, loại hình doanh nghiệp, vấn đề ngân hàng và công cụ huy động vốn.
-- Tự tính các thông số tài chính cá nhân hóa.
-- Case 01: As-is Process tối thiểu 8 bước.
-- Case 01: đánh giá cơ sở dữ liệu tập trung so với Blockchain/DLT theo các tiêu chí của tài liệu.
-- Case 01: lựa chọn mô hình Blockchain, thành viên mạng, nút xác thực và cơ chế đồng thuận.
-- Case 01: ma trận quyền đọc, ghi, xác thực, quản trị và tạm dừng.
-- Case 01: phân loại dữ liệu On-chain và Off-chain.
-- Case 01: thiết kế các nội dung quản trị mạng.
-- Case 01: Risk Register với Risk Score = Probability × Impact.
-- Checklist kiểm tra điều kiện hoàn thành Case 01.
-- SQLite lưu hồ sơ sinh viên và toàn bộ dữ liệu Case 01 để Case 02 có thể sử dụng lại.
+- Cá nhân hóa D1, D2, D3, D4 và các thông số tài chính.
+- Case 01: As-is Process, đánh giá Blockchain, kiến trúc mạng, quyền, dữ liệu On-chain/Off-chain, đồng thuận, quản trị và Risk Register.
+- Case 02: hồ sơ tín dụng, DSCR, LTV, Oracle, ba kịch bản, sự kiện và mô phỏng hợp đồng thông minh.
+- Case 03: dữ liệu chuyển tiếp từ Case 02, công cụ huy động vốn theo D1, hồ sơ phát hành, Term Sheet, quy mô token, vòng đời token, pseudocode hợp đồng thông minh, lợi ích nhà đầu tư, ba kịch bản, bảo vệ nhà đầu tư, Risk Register và khuyến nghị đầu tư.
+- SQLite lưu hồ sơ dự án và hỗ trợ lưu Case 01, Case 02, Case 03.
 
 ## Chạy ứng dụng
 
@@ -26,26 +19,41 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
+Trên Streamlit Community Cloud, file `app.py` là ứng dụng chính. Case 03 được triển khai dưới dạng trang `pages/03_Case_03.py`.
+
 ## Cấu trúc
 
 ```text
 app.py
 database.py
+pages/
+  03_Case_03.py
 services/
   personalization.py
   financial.py
   case01.py
+  case02.py
+  case02_ui.py
+  case03.py
+  case03_ui.py
 requirements.txt
 ```
 
 ## Nguyên tắc dữ liệu
 
-Dữ liệu cá nhân hóa được tính từ mã số sinh viên theo quy tắc của tài liệu case study. Case 02 và Case 03 sẽ sử dụng dữ liệu đã lưu từ Case trước thay vì yêu cầu sinh viên nhập lại.
+Case 03 lấy External Capital, DSCR, LTV và công cụ huy động vốn từ hồ sơ đã cá nhân hóa và Case 02. Sinh viên không nhập lại phần vốn cần huy động.
 
-SQLite chỉ là lớp lưu trữ của ứng dụng học tập. Phiên bản hiện tại chưa triển khai mạng Blockchain thật, ví thật hoặc giao dịch tài sản thật.
+Các giả định về giá phát hành, số token, lợi suất phân phối, thời hạn, mức đầu tư tối thiểu và cơ chế mua lại là các tham số thiết kế của sinh viên, phải được giải thích trong Term Sheet.
+
+SQLite hiện phục vụ mục tiêu học tập và thử nghiệm. Đây chưa phải kiến trúc lưu trữ phù hợp cho triển khai chính thức với dữ liệu của cả lớp.
+
+## Nguồn yêu cầu Case 03
+
+Ứng dụng bám các đầu ra của tài liệu: báo cáo Case 03, bảng so sánh phương án huy động vốn, Term Sheet, vòng đời token, pseudocode hợp đồng thông minh, bảng tính lợi ích nhà đầu tư, ba kịch bản, Risk Register và khuyến nghị đầu tư.
 
 ## Lộ trình
 
-- Phiên bản 0.3: Case 02, sản phẩm tín dụng, To-be Process, máy tính DSCR/LTV, mô phỏng hợp đồng thông minh, Oracle và ba kịch bản.
-- Phiên bản 0.4: Case 03, Term Sheet, token, lợi ích nhà đầu tư và ba kịch bản đầu tư.
-- Phiên bản 1.0: kiểm tra tính nhất quán giữa ba Case, sơ đồ tự động, xuất báo cáo và hỗ trợ giảng viên.
+- Phiên bản 0.4: hoàn thiện Case 03.
+- Phiên bản 0.5: kiểm tra tính nhất quán giữa ba Case.
+- Phiên bản 0.6: sơ đồ tự động và Change Log.
+- Phiên bản 1.0: xuất báo cáo và giao diện giảng viên.
