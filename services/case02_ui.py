@@ -7,12 +7,19 @@ def render_case02(st, financials):
     st.caption("Case 02 sử dụng trực tiếp các thông số tài chính từ Case 01, không nhập lại.")
 
     st.subheader("1. Hồ sơ tín dụng chuyển tiếp")
-    cols = st.columns(6)
-    for col, key, label in zip(cols, ["V", "LoanAmount", "ExternalCapital", "T", "r", "CollateralValue"], ["Tổng nhu cầu vốn", "Khoản vay", "Vốn còn thiếu", "Thời hạn", "Lãi suất", "Tài sản bảo đảm"]):
-        value = financials[key]
-        suffix = " tỷ" if key not in ["T", "r"] else (" năm" if key == "T" else "%")
-        display = f"{value:.2f}{suffix}" if key != "r" else f"{value*100:.2f}%"
-        col.metric(label, display)
+    # Không dùng 6 cột vì chiều rộng mỗi cột quá hẹp, làm Streamlit rút gọn số bằng dấu ...
+    credit_items = [
+        ("Tổng nhu cầu vốn", f"{financials['V']:.2f} tỷ"),
+        ("Khoản vay", f"{financials['LoanAmount']:.2f} tỷ"),
+        ("Vốn còn thiếu", f"{financials['ExternalCapital']:.2f} tỷ"),
+        ("Thời hạn", f"{financials['T']} năm"),
+        ("Lãi suất", f"{financials['r']*100:.2f}%"),
+        ("Tài sản bảo đảm", f"{financials['CollateralValue']:.2f} tỷ"),
+    ]
+    for row_start in range(0, len(credit_items), 3):
+        cols = st.columns(3)
+        for col, (label, display) in zip(cols, credit_items[row_start:row_start + 3]):
+            col.metric(label, display)
 
     st.subheader("2. Phân tích tín dụng")
     metrics = evaluate_credit(financials, "Cơ sở")
@@ -24,7 +31,7 @@ def render_case02(st, financials):
 
     st.subheader("3. Oracle")
     oracle_df = pd.DataFrame(oracle_defaults())
-    oracle_edited = st.data_editor(oracle_df, num_rows="dynamic", use_container_width=True, key="oracle_editor")
+    oracle_edited = st.data_editor(oracle_df, num_rows="dynamic", width="stretch", key="oracle_editor")
     st.session_state.case02_oracle = oracle_edited.to_dict("records")
 
     st.subheader("4. Ba kịch bản")
@@ -32,7 +39,7 @@ def render_case02(st, financials):
     scenario_rows = []
     for name, data in scenarios.items():
         scenario_rows.append({"Kịch bản": name, "Doanh thu": data["Revenue1"], "Biên EBITDA": data["EbitdaMargin"], "EBITDA": data["EBITDA1"], "DSCR": data["DSCR"], "Tài sản bảo đảm": data["CollateralValue"], "LTV": data["LTV"]})
-    st.dataframe(pd.DataFrame(scenario_rows), use_container_width=True, hide_index=True)
+    st.dataframe(pd.DataFrame(scenario_rows), width="stretch", hide_index=True)
     selected = st.selectbox("Kịch bản mô phỏng", list(scenarios.keys()))
     selected_eval = evaluate_credit(financials, selected)
     a, b, c = st.columns(3)
@@ -47,7 +54,7 @@ def render_case02(st, financials):
     invoice = x2.checkbox("Hóa đơn hợp lệ và chưa được tài trợ", value=True)
     delivery = x2.checkbox("Đã xác nhận giao hàng", value=True)
     events = smart_contract_events(kyc_valid=kyc, aml_clear=aml, invoice_valid=invoice, delivery_confirmed=delivery, ltv=selected_eval["LTV"])
-    st.dataframe(pd.DataFrame(events), use_container_width=True, hide_index=True)
+    st.dataframe(pd.DataFrame(events), width="stretch", hide_index=True)
 
     st.subheader("6. Tình huống sự kiện")
     event = st.selectbox("Chọn sự kiện", ["KYC không hợp lệ", "Hóa đơn đã được tài trợ", "Chưa xác nhận giao hàng", "LTV vượt ngưỡng cảnh báo", "LTV vượt ngưỡng xử lý tài sản", "Điều kiện đầy đủ"])
@@ -60,6 +67,6 @@ def render_case02(st, financials):
         "Điều kiện đầy đủ": (True, True, True, True, min(selected_eval["LTV"], 0.69)),
     }
     args = mapping[event]
-    st.dataframe(pd.DataFrame(smart_contract_events(kyc_valid=args[0], invoice_valid=args[2], delivery_confirmed=args[3], aml_clear=args[1], ltv=args[4])), use_container_width=True, hide_index=True)
+    st.dataframe(pd.DataFrame(smart_contract_events(kyc_valid=args[0], invoice_valid=args[2], delivery_confirmed=args[3], aml_clear=args[1], ltv=args[4])), width="stretch", hide_index=True)
 
     st.success("Case 02 đã có lớp tín dụng, Oracle, kịch bản và mô phỏng hợp đồng thông minh. Dữ liệu đầu vào lấy trực tiếp từ Case 01.")
