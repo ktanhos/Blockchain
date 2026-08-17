@@ -135,8 +135,12 @@ with case03_tab:
 
 with check_tab:
     st.header("Consistency Checker · Kiểm tra liên kết ba Case")
-    st.caption("Kiểm tra tự động các liên kết dữ liệu và điều kiện cốt lõi giữa Case 01, Case 02 và Case 03.")
-    results = check_consistency(profile, financials, st.session_state.case01, st.session_state.case03)
+    st.caption("Kiểm tra tự động 22 câu hỏi liên kết giữa Case 01, Case 02 và Case 03.")
+    # Consistency Checker cần cả dữ liệu Case 02. Trước đây app truyền nhầm case03 vào vị trí case02.
+    existing_project = load_project(project_id) or {}
+    case02_saved = existing_project.get("case02") or {}
+    case03_saved = existing_project.get("case03") or st.session_state.case03
+    results = check_consistency(profile, financials, st.session_state.case01, case02_saved, case03_saved)
     result_df = pd.DataFrame(results)
     st.dataframe(result_df, use_container_width=True, hide_index=True)
     errors = sum(x["Trạng thái"] == "Lỗi" for x in results)
@@ -144,7 +148,7 @@ with check_tab:
     c1.metric("Tổng kiểm tra", len(results))
     c2.metric("Số lỗi", errors)
     if errors == 0:
-        st.success("Không phát hiện lỗi trong các kiểm tra hiện có.")
+        st.success("Không phát hiện lỗi trong 22 kiểm tra.")
     else:
         st.error(f"Phát hiện {errors} điểm cần xử lý trước khi nộp.")
     if st.button("Lưu kết quả kiểm tra", key="save_consistency"):
