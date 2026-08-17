@@ -72,7 +72,11 @@ with case01_tab:
     as_is_df = pd.DataFrame(case01["as_is"])
     as_is_edited = st.data_editor(as_is_df, num_rows="dynamic", use_container_width=True, key="as_is_editor")
     case01["as_is"] = as_is_edited.to_dict("records")
-    st.success(f"Đạt yêu cầu số bước: {len(case01['as_is'])} bước") if len(case01["as_is"]) >= 8 else st.warning(f"Chưa đạt tối thiểu 8 bước. Hiện có {len(case01['as_is'])} bước.")
+    step_count = len(case01["as_is"])
+    if step_count >= 8:
+        st.success(f"Đạt yêu cầu số bước: {step_count} bước")
+    else:
+        st.warning(f"Chưa đạt tối thiểu 8 bước. Hiện có {step_count} bước.")
     flow = [str(row.get("Hành động", "")) for row in case01["as_is"] if str(row.get("Hành động", "")).strip()]
     st.write(" → ".join(flow))
 
@@ -136,7 +140,6 @@ with case03_tab:
 with check_tab:
     st.header("Consistency Checker · Kiểm tra liên kết ba Case")
     st.caption("Kiểm tra tự động 22 câu hỏi liên kết giữa Case 01, Case 02 và Case 03.")
-    # Consistency Checker cần cả dữ liệu Case 02. Trước đây app truyền nhầm case03 vào vị trí case02.
     existing_project = load_project(project_id) or {}
     case02_saved = existing_project.get("case02") or {}
     case03_saved = existing_project.get("case03") or st.session_state.case03
