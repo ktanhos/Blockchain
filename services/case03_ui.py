@@ -87,7 +87,10 @@ def render_case03(st, profile, financials, save_callback=None):
     sc = st.columns(3)
     sc[0].metric("NPV kịch bản", f"{npv(discount, scenario_flows) / 1e9:.2f} tỷ")
     sc[1].metric("IRR kịch bản", "Không xác định" if scenario_irr is None else f"{scenario_irr * 100:.2f}%")
-    sc[2].metric("Giá token giả định", f"{scenario_row['Giá token giả định']:,.0f} đồng")
+    # Sửa lỗi KeyError: dùng đúng cột đã tạo trong investment_scenarios.
+    scenario_token_price = float(scenario_row["Giá token"])
+    scenario_token_price_vnd = metrics["IssuePrice"] * (1 + scenario_token_price)
+    sc[2].metric("Giá token giả định", f"{scenario_token_price_vnd:,.0f} đồng")
 
     st.subheader("8. Bảo vệ nhà đầu tư")
     protections = case03.get("protections") or [{"Biện pháp": x, "Áp dụng": True, "Thiết kế chi tiết": ""} for x in ["Xác minh tổ chức phát hành", "Thẩm định dự án", "Công bố rủi ro", "Giới hạn đầu tư", "Tách biệt tiền nhà đầu tư", "Kiểm toán hợp đồng thông minh", "Giải ngân theo tiến độ", "Cơ chế hoàn tiền", "Báo cáo sử dụng vốn", "Cơ chế xử lý khiếu nại", "Giám sát giao dịch bất thường", "Kế hoạch ứng phó sự cố"]]
