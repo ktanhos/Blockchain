@@ -45,6 +45,7 @@ with st.form("consistency_linkage"):
     case02["oracle"] = st.text_area("Oracle Case 02 được sử dụng", value=str(case02.get("oracle", "")))
     case02["emergency_pause"] = st.checkbox("Có tái sử dụng cơ chế tạm dừng khẩn cấp", value=bool(case02.get("emergency_pause", False)))
     case02["upgrade_authority"] = st.text_input("Chủ thể nâng cấp hợp đồng Case 02", value=case02.get("upgrade_authority", ""))
+    case02["conclusion"] = st.text_area("Kết luận Case 02", value=case02.get("conclusion", ""))
     case02["risks"] = case02.get("risks", case01.get("risks", []))
 
     st.markdown("**Case 03**")
