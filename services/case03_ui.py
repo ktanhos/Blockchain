@@ -11,10 +11,22 @@ def render_case03(st, profile, financials, save_callback=None):
     st.caption("Case 03 sử dụng trực tiếp External Capital, DSCR, LTV và công cụ huy động vốn đã xác định từ các case trước.")
 
     st.subheader("1. Dữ liệu chuyển tiếp")
-    c = st.columns(6)
-    values = [("Tổng nhu cầu vốn", financials["V"], " tỷ"), ("Khoản vay", financials["LoanAmount"], " tỷ"), ("Vốn còn thiếu", financials["ExternalCapital"], " tỷ"), ("DSCR", financials["DSCR"], "x"), ("LTV", financials["LTV"] * 100, "%"), ("Công cụ", profile["funding_instrument"], "")]
-    for col, (label, value, suffix) in zip(c, values):
-        col.metric(label, f"{value:.2f}{suffix}" if isinstance(value, (int, float)) else value)
+    values = [
+        ("Tổng nhu cầu vốn", financials["V"], " tỷ"),
+        ("Khoản vay", financials["LoanAmount"], " tỷ"),
+        ("Vốn còn thiếu", financials["ExternalCapital"], " tỷ"),
+        ("DSCR", financials["DSCR"], "x"),
+        ("LTV", financials["LTV"] * 100, "%"),
+        ("Công cụ", profile["funding_instrument"], ""),
+    ]
+    for row_start in range(0, len(values), 3):
+        cols = st.columns(3)
+        for col, (label, value, suffix) in zip(cols, values[row_start:row_start + 3]):
+            if isinstance(value, (int, float)):
+                display = f"{value:.2f}{suffix}"
+            else:
+                display = str(value)
+            col.metric(label, display)
 
     st.subheader("2. Hồ sơ phát hành")
     left, right = st.columns(2)
@@ -43,17 +55,18 @@ def render_case03(st, profile, financials, save_callback=None):
 
     metrics = token_metrics(case03, financials)
     st.write("Quy mô phát hành")
-    m = st.columns(5)
-    m[0].metric("Vốn cần huy động", f"{metrics['ExternalCapital']:.2f} tỷ")
-    m[1].metric("Tổng số token", f"{metrics['TokenCount']:,}")
-    m[2].metric("Giá phát hành", f"{metrics['IssuePrice']:,.0f} đồng")
-    m[3].metric("Giá trị phát hành", f"{metrics['ActualRaise'] / 1e9:.2f} tỷ")
-    m[4].metric("Tỷ lệ phát hành thực tế", f"{metrics['ActualRaise'] / metrics['TargetVND'] * 100:.4f}%" if metrics['TargetVND'] else "0%")
+    m1, m2, m3 = st.columns(3)
+    m1.metric("Vốn cần huy động", f"{metrics['ExternalCapital']:.2f} tỷ")
+    m2.metric("Tổng số token", f"{metrics['TokenCount']:,}")
+    m3.metric("Giá phát hành", f"{metrics['IssuePrice']:,.0f} đồng")
+    m4, m5 = st.columns(2)
+    m4.metric("Giá trị phát hành", f"{metrics['ActualRaise'] / 1e9:.2f} tỷ")
+    m5.metric("Tỷ lệ phát hành thực tế", f"{metrics['ActualRaise'] / metrics['TargetVND'] * 100:.4f}%" if metrics['TargetVND'] else "0%")
     if abs(metrics["ActualRaise"] - metrics["TargetVND"]) > metrics["IssuePrice"]:
         st.warning("Giá phát hành và số token làm giá trị phát hành lệch quá một đơn vị token so với External Capital.")
 
     st.subheader("4. Vòng đời token")
-    lifecycle = st.data_editor(pd.DataFrame(case03["lifecycle"]), num_rows="dynamic", use_container_width=True, key="case03_lifecycle")
+    lifecycle = st.data_editor(pd.DataFrame(case03["lifecycle"]), num_rows="dynamic", width="stretch", key="case03_lifecycle")
     case03["lifecycle"] = lifecycle.to_dict("records")
 
     st.subheader("5. Hợp đồng thông minh")
@@ -62,16 +75,17 @@ def render_case03(st, profile, financials, save_callback=None):
     st.subheader("6. Lợi ích nhà đầu tư")
     discount = st.number_input("Tỷ lệ chiết khấu để tính NPV, %/năm", min_value=0.0, max_value=100.0, value=10.0, step=0.5) / 100
     benefits = investor_benefits(case03, financials, discount)
-    b = st.columns(5)
-    b[0].metric("Thu nhập năm", f"{benefits['Coupon hoặc lợi nhuận năm'] / 1e9:.2f} tỷ")
-    b[1].metric("Tổng thu nhập", f"{benefits['Tổng thu nhập trong kỳ'] / 1e9:.2f} tỷ")
-    b[2].metric("ROI tích lũy", f"{benefits['ROI tích lũy'] * 100:.2f}%")
-    b[3].metric("NPV", f"{benefits['NPV'] / 1e9:.2f} tỷ")
-    b[4].metric("IRR", "Không xác định" if benefits["IRR"] is None else f"{benefits['IRR'] * 100:.2f}%")
+    b1, b2, b3 = st.columns(3)
+    b1.metric("Thu nhập năm", f"{benefits['Coupon hoặc lợi nhuận năm'] / 1e9:.2f} tỷ")
+    b2.metric("Tổng thu nhập", f"{benefits['Tổng thu nhập trong kỳ'] / 1e9:.2f} tỷ")
+    b3.metric("ROI tích lũy", f"{benefits['ROI tích lũy'] * 100:.2f}%")
+    b4, b5 = st.columns(2)
+    b4.metric("NPV", f"{benefits['NPV'] / 1e9:.2f} tỷ")
+    b5.metric("IRR", "Không xác định" if benefits["IRR"] is None else f"{benefits['IRR'] * 100:.2f}%")
 
     st.subheader("7. Phân tích ba kịch bản đầu tư")
     scenario_df = investment_scenarios(case03, financials)
-    st.dataframe(scenario_df, use_container_width=True, hide_index=True)
+    st.dataframe(scenario_df, width="stretch", hide_index=True)
     st.caption("Tăng trưởng: doanh thu tăng 20%, giá trị tài sản cơ sở tăng 15%, giá token tăng 15%. Suy giảm: doanh thu giảm 25%, thanh khoản thấp, khả năng phân phối giảm và giá token giảm 30%.")
     scenario = st.selectbox("Kịch bản phân tích dòng tiền nhà đầu tư", ["Cơ sở", "Tăng trưởng", "Suy giảm"])
     base_flows = investor_cashflows(case03, financials)
@@ -84,22 +98,20 @@ def render_case03(st, profile, financials, save_callback=None):
             scenario_flows[i] *= payout_factor
         scenario_flows[-1] += metrics["TargetVND"] * price_factor
     scenario_irr = irr(scenario_flows)
-    sc = st.columns(3)
-    sc[0].metric("NPV kịch bản", f"{npv(discount, scenario_flows) / 1e9:.2f} tỷ")
-    sc[1].metric("IRR kịch bản", "Không xác định" if scenario_irr is None else f"{scenario_irr * 100:.2f}%")
-    # Sửa lỗi KeyError: dùng đúng cột đã tạo trong investment_scenarios.
-    scenario_token_price = float(scenario_row["Giá token"])
-    scenario_token_price_vnd = metrics["IssuePrice"] * (1 + scenario_token_price)
-    sc[2].metric("Giá token giả định", f"{scenario_token_price_vnd:,.0f} đồng")
+    sc1, sc2, sc3 = st.columns(3)
+    sc1.metric("NPV kịch bản", f"{npv(discount, scenario_flows) / 1e9:.2f} tỷ")
+    sc2.metric("IRR kịch bản", "Không xác định" if scenario_irr is None else f"{scenario_irr * 100:.2f}%")
+    scenario_token_price_vnd = metrics["IssuePrice"] * (1 + price_factor)
+    sc3.metric("Giá token giả định", f"{scenario_token_price_vnd:,.0f} đồng")
 
     st.subheader("8. Bảo vệ nhà đầu tư")
     protections = case03.get("protections") or [{"Biện pháp": x, "Áp dụng": True, "Thiết kế chi tiết": ""} for x in ["Xác minh tổ chức phát hành", "Thẩm định dự án", "Công bố rủi ro", "Giới hạn đầu tư", "Tách biệt tiền nhà đầu tư", "Kiểm toán hợp đồng thông minh", "Giải ngân theo tiến độ", "Cơ chế hoàn tiền", "Báo cáo sử dụng vốn", "Cơ chế xử lý khiếu nại", "Giám sát giao dịch bất thường", "Kế hoạch ứng phó sự cố"]]
-    protection_edited = st.data_editor(pd.DataFrame(protections), use_container_width=True, key="case03_protection")
+    protection_edited = st.data_editor(pd.DataFrame(protections), width="stretch", key="case03_protection")
     case03["protections"] = protection_edited.to_dict("records")
 
     st.subheader("9. Risk Register cho token")
     risk_df = risk_dataframe(case03["risks"])
-    risk_edited = st.data_editor(risk_df, num_rows="dynamic", column_config={"P": st.column_config.NumberColumn(min_value=1, max_value=5, step=1), "I": st.column_config.NumberColumn(min_value=1, max_value=5, step=1), "Điểm": st.column_config.NumberColumn(disabled=True)}, use_container_width=True, key="case03_risk")
+    risk_edited = st.data_editor(risk_df, num_rows="dynamic", column_config={"P": st.column_config.NumberColumn(min_value=1, max_value=5, step=1), "I": st.column_config.NumberColumn(min_value=1, max_value=5, step=1), "Điểm": st.column_config.NumberColumn(disabled=True)}, width="stretch", key="case03_risk")
     case03["risks"] = risk_edited.to_dict("records")
 
     st.subheader("10. Khuyến nghị đầu tư")
@@ -113,7 +125,7 @@ def render_case03(st, profile, financials, save_callback=None):
         "Đủ 14 nhóm rủi ro": len(case03["risks"]) >= 14,
         "Có khuyến nghị": bool(case03["recommendation"].strip()),
     }
-    st.dataframe(pd.DataFrame({"Hạng mục": list(checks.keys()), "Trạng thái": ["Đạt" if v else "Chưa đạt" for v in checks.values()]}), use_container_width=True, hide_index=True)
+    st.dataframe(pd.DataFrame({"Hạng mục": list(checks.keys()), "Trạng thái": ["Đạt" if v else "Chưa đạt" for v in checks.values()]}), width="stretch", hide_index=True)
     if all(checks.values()):
         st.success("Case 03 đã đạt bộ kiểm tra cơ bản.")
     else:
