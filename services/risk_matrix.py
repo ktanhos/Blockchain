@@ -78,8 +78,7 @@ def heatmap_figure(case01, case02, case03):
     """Heatmap 5x5 dạng tổng hợp theo ô, không chồng nhãn.
 
     Mỗi ô luôn hiển thị điểm của ô. Nếu có rủi ro tại ô đó, biểu đồ chỉ
-    hiển thị số lượng rủi ro, ví dụ 3 rủi ro. Chi tiết từng rủi ro nằm trong
-    Risk Register, nhờ đó hình vẫn đọc được khi in trên A4.
+    hiển thị số lượng rủi ro. Chi tiết từng rủi ro nằm trong Risk Register.
     """
     points = _collect(case01, case02, case03)
     counts = Counter((x["p"], x["i"]) for x in points)
@@ -98,7 +97,6 @@ def heatmap_figure(case01, case02, case03):
         fontsize=9.2, color=SLATE, va="top",
     )
 
-    # Ba chỉ báo nhỏ giúp người đọc nắm nhanh quy mô mà không làm rối ma trận.
     summary = [
         ("Tổng rủi ro", total),
         ("Rủi ro cao trở lên", high_count),
@@ -106,15 +104,17 @@ def heatmap_figure(case01, case02, case03):
     ]
     for idx, (label, value) in enumerate(summary):
         x = 0.075 + idx * 0.205
-        fig.add_patch(FancyBboxPatch(
+        fig.patches.append(FancyBboxPatch(
             (x, 0.835), 0.175, 0.055,
             transform=fig.transFigure,
             boxstyle="round,pad=0.008,rounding_size=0.012",
             facecolor="#F6F8FA", edgecolor="#E2E8F0", linewidth=0.8,
         ))
         fig.text(x + 0.012, 0.862, label, fontsize=7.6, color=SLATE, va="center")
-        fig.text(x + 0.162, 0.862, str(value), fontsize=11, fontweight="bold",
-                 color=NAVY, ha="right", va="center")
+        fig.text(
+            x + 0.162, 0.862, str(value), fontsize=11,
+            fontweight="bold", color=NAVY, ha="right", va="center",
+        )
 
     ax = fig.add_axes([0.16, 0.235, 0.68, 0.55])
     ax.set_xlim(0.5, 5.5)
@@ -130,31 +130,26 @@ def heatmap_figure(case01, case02, case03):
     for p in range(1, 6):
         for i in range(1, 6):
             score = p * i
-            fill = _fill(score)
             ax.add_patch(Rectangle(
                 (i - 0.5, p - 0.5), 1, 1,
-                facecolor=fill, edgecolor=GRID, linewidth=2.0,
+                facecolor=_fill(score), edgecolor=GRID, linewidth=2.0,
             ))
-            # Điểm nằm ở góc trên bên phải, nhỏ và nhẹ.
             ax.text(
                 i + 0.34, p + 0.34, str(score),
-                ha="right", va="top", fontsize=7.3,
-                color=MUTED,
+                ha="right", va="top", fontsize=7.3, color=MUTED,
             )
             count = counts.get((p, i), 0)
             if count:
                 ax.text(
                     i, p + 0.01, str(count),
-                    ha="center", va="center",
-                    fontsize=14, fontweight="bold", color=NAVY,
+                    ha="center", va="center", fontsize=15,
+                    fontweight="bold", color=NAVY,
                 )
                 ax.text(
-                    i, p - 0.22,
-                    "rủi ro" if count == 1 else "rủi ro",
+                    i, p - 0.22, "rủi ro",
                     ha="center", va="center", fontsize=7.2, color=DARK,
                 )
 
-    # Chú giải mức độ rủi ro nằm dưới hình, không có danh sách dài.
     legend = [
         ("Thấp", LOW, "1–4"),
         ("Trung bình", MEDIUM, "5–9"),
