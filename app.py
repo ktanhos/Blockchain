@@ -33,7 +33,6 @@ if len(digits) < 4:
 project_id = f"student_{digits}"
 existing = load_project(project_id) or {}
 
-# Khôi phục mô tả doanh nghiệp trước khi personalization chạy để không mất khi tải lại trình duyệt.
 if existing.get("profile", {}).get("business_description") and "business_description" not in st.session_state:
     st.session_state.business_description = existing["profile"]["business_description"]
 try:
@@ -48,29 +47,27 @@ if existing.get("profile", {}).get("business_description") and not profile.get("
 
 financials = calculate_financials(profile)
 
+def merge_defaults(template, saved):
+    result = copy.deepcopy(template)
+    if saved:
+        result.update(copy.deepcopy(saved))
+    return result
+
 if st.session_state.get("project_id") != project_id:
     st.session_state.project_id = project_id
     st.session_state.case01 = copy.deepcopy(existing.get("case01") or default_case01())
-    st.session_state.case02 = copy.deepcopy(existing.get("case02") or default_case02(financials, st.session_state.case01))
-    st.session_state.case03 = copy.deepcopy(existing.get("case03") or default_case03(profile, financials))
+    st.session_state.case02 = merge_defaults(default_case02(financials, st.session_state.case01), existing.get("case02"))
+    st.session_state.case03 = merge_defaults(default_case03(profile, financials), existing.get("case03"))
 else:
     st.session_state.setdefault("case01", copy.deepcopy(existing.get("case01") or default_case01()))
-    st.session_state.setdefault("case02", copy.deepcopy(existing.get("case02") or default_case02(financials, st.session_state.case01)))
-    st.session_state.setdefault("case03", copy.deepcopy(existing.get("case03") or default_case03(profile, financials)))
+    st.session_state.setdefault("case02", merge_defaults(default_case02(financials, st.session_state.case01), existing.get("case02")))
+    st.session_state.setdefault("case03", merge_defaults(default_case03(profile, financials), existing.get("case03")))
 
 case01 = st.session_state.case01
 case02 = st.session_state.case02
 case03 = st.session_state.case03
-
-# Tương thích dữ liệu cũ.
-case01.setdefault("permissions", [])
-case01.setdefault("data", [])
-case01.setdefault("assessment", [])
-case01.setdefault("risks", [])
-case01.setdefault("architecture", {})
-case01.setdefault("governance", {})
-case02.setdefault("oracle", [])
-case02.setdefault("risks", [])
+case01.setdefault("permissions", []); case01.setdefault("data", []); case01.setdefault("assessment", []); case01.setdefault("risks", []); case01.setdefault("architecture", {}); case01.setdefault("governance", {})
+case02.setdefault("oracle", []); case02.setdefault("risks", [])
 case03.setdefault("risks", [])
 
 
@@ -112,55 +109,30 @@ with check_tab:
     st.dataframe(result_df, width="stretch", hide_index=True)
     errors = sum(x["Trạng thái"] == "Lỗi" for x in results)
     c1, c2 = st.columns(2)
-    c1.metric("Tổng kiểm tra", len(results))
-    c2.metric("Số lỗi", errors)
-    if errors == 0:
-        st.success("Không phát hiện lỗi trong 22 kiểm tra.")
-    else:
-        st.error(f"Phát hiện {errors} điểm cần xử lý.")
+    c1.metric("Tổng kiểm tra", len(results)); c2.metric("Số lỗi", errors)
+    if errors == 0: st.success("Không phát hiện lỗi trong 22 kiểm tra.")
+    else: st.error(f"Phát hiện {errors} điểm cần xử lý.")
     if st.button("Lưu kết quả kiểm tra", key="save_consistency"):
-        st.session_state.consistency = results
-        save_all()
-        st.success("Đã lưu trạng thái dự án.")
+        st.session_state.consistency = results; save_all(); st.success("Đã lưu trạng thái dự án.")
 
 with report_tab:
     st.header("Báo cáo tổng hợp")
     results = check_consistency(profile, financials, st.session_state.case01, st.session_state.case02, st.session_state.case03)
-    case01_status = validate_case01(st.session_state.case01)
-    case02_status = validate_case02(st.session_state.case02)
-    case03_status = validate_case03(st.session_state.case03)
-    completed = sum(case01_status.values()) + sum(case02_status.values()) + sum(case03_status.values())
-    total = len(case01_status) + len(case02_status) + len(case03_status)
-    errors = sum(x["Trạng thái"] == "Lỗi" for x in results)
-    m1, m2, m3 = st.columns(3)
-    m1.metric("Mức độ hoàn thiện theo Instruction", f"{completed / total * 100:.0f}%" if total else "0%")
-    m2.metric("Kiểm tra liên kết", f"{len(results) - errors}/{len(results)}")
-    m3.metric("Điểm cần xử lý", errors)
-    status_df = pd.DataFrame([
-        {"Case": "Case 01", "Đạt yêu cầu": sum(case01_status.values()), "Tổng yêu cầu": len(case01_status), "Tỷ lệ": f"{sum(case01_status.values()) / len(case01_status) * 100:.0f}%"},
-        {"Case": "Case 02", "Đạt yêu cầu": sum(case02_status.values()), "Tổng yêu cầu": len(case02_status), "Tỷ lệ": f"{sum(case02_status.values()) / len(case02_status) * 100:.0f}%"},
-        {"Case": "Case 03", "Đạt yêu cầu": sum(case03_status.values()), "Tổng yêu cầu": len(case03_status), "Tỷ lệ": f"{sum(case03_status.values()) / len(case03_status) * 100:.0f}%"},
-    ])
+    case01_status = validate_case01(st.session_state.case01); case02_status = validate_case02(st.session_state.case02); case03_status = validate_case03(st.session_state.case03)
+    completed = sum(case01_status.values()) + sum(case02_status.values()) + sum(case03_status.values()); total = len(case01_status) + len(case02_status) + len(case03_status); errors = sum(x["Trạng thái"] == "Lỗi" for x in results)
+    m1, m2, m3 = st.columns(3); m1.metric("Mức độ hoàn thiện theo Instruction", f"{completed / total * 100:.0f}%" if total else "0%"); m2.metric("Kiểm tra liên kết", f"{len(results) - errors}/{len(results)}"); m3.metric("Điểm cần xử lý", errors)
+    status_df = pd.DataFrame([{ "Case": "Case 01", "Đạt yêu cầu": sum(case01_status.values()), "Tổng yêu cầu": len(case01_status), "Tỷ lệ": f"{sum(case01_status.values()) / len(case01_status) * 100:.0f}%"}, {"Case": "Case 02", "Đạt yêu cầu": sum(case02_status.values()), "Tổng yêu cầu": len(case02_status), "Tỷ lệ": f"{sum(case02_status.values()) / len(case02_status) * 100:.0f}%"}, {"Case": "Case 03", "Đạt yêu cầu": sum(case03_status.values()), "Tổng yêu cầu": len(case03_status), "Tỷ lệ": f"{sum(case03_status.values()) / len(case03_status) * 100:.0f}%"}])
     st.dataframe(status_df, width="stretch", hide_index=True)
-    if errors:
-        st.dataframe(pd.DataFrame(results).query("Trạng thái == 'Lỗi'"), width="stretch", hide_index=True)
-    else:
-        st.success("Không còn điểm lỗi trong bộ kiểm tra liên kết.")
+    if errors: st.dataframe(pd.DataFrame(results).query("Trạng thái == 'Lỗi'"), width="stretch", hide_index=True)
+    else: st.success("Không còn điểm lỗi trong bộ kiểm tra liên kết.")
     st.subheader("Xem nhanh")
-    p1, p2, p3 = st.columns(3)
-    p1.write(f"Doanh nghiệp: {profile.get('business_type', '')}")
-    p1.write(f"Ngành: {profile.get('industry', '')}")
-    p2.write(f"Tổng nhu cầu vốn: {financials.get('V', 0):,.2f} tỷ đồng")
-    p2.write(f"Khoản vay: {financials.get('LoanAmount', 0):,.2f} tỷ đồng")
-    p3.write(f"Vốn còn thiếu: {financials.get('ExternalCapital', 0):,.2f} tỷ đồng")
-    p3.write(f"Blockchain: {st.session_state.case01.get('architecture', {}).get('blockchain_type', '')}")
+    p1, p2, p3 = st.columns(3); p1.write(f"Doanh nghiệp: {profile.get('business_type', '')}"); p1.write(f"Ngành: {profile.get('industry', '')}"); p2.write(f"Tổng nhu cầu vốn: {financials.get('V', 0):,.2f} tỷ đồng"); p2.write(f"Khoản vay: {financials.get('LoanAmount', 0):,.2f} tỷ đồng"); p3.write(f"Vốn còn thiếu: {financials.get('ExternalCapital', 0):,.2f} tỷ đồng"); p3.write(f"Blockchain: {st.session_state.case01.get('architecture', {}).get('blockchain_type', '')}")
     st.info("Bản báo cáo được tổng hợp từ dữ liệu Case 01, Case 02 và Case 03. Sinh viên vẫn phải hoàn thiện phần phân tích, trích dẫn và trình bày theo Instruction File.")
     report_bytes = build_integrated_report(profile, financials, st.session_state.case01, st.session_state.case02, st.session_state.case03, results)
-    filename = f"Bao_cao_Blockchain_{digits}.pdf"
-    st.download_button("Xuất báo cáo", data=report_bytes, file_name=filename, mime="application/pdf", width="stretch")
+    st.download_button("Xuất báo cáo", data=report_bytes, file_name=f"Bao_cao_Blockchain_{digits}.pdf", mime="application/pdf", width="stretch")
     project_json = {"student_id": student_id, "profile": profile, "financials": financials, "case01": st.session_state.case01, "case02": st.session_state.case02, "case03": st.session_state.case03, "consistency": results}
     st.download_button("Xuất toàn bộ dữ liệu dự án JSON", data=json.dumps(project_json, ensure_ascii=False, indent=2, default=str), file_name=f"Blockchain_Project_{digits}.json", mime="application/json", width="stretch")
 
-# Tự động lưu sau mỗi lần rerun để thao tác nhập liệu không bị mất khi chuyển tab hoặc refresh nhẹ.
+# Tự động lưu sau mỗi lần rerun. Nhờ đó thao tác nhập liệu được giữ ngay cả khi chuyển tab hoặc làm mới nhẹ trong cùng dự án.
 save_all()
-st.caption("Đã đồng bộ dữ liệu dự án vào bộ nhớ lưu trữ.")
+st.caption("Đã đồng bộ dữ liệu dự án.")
