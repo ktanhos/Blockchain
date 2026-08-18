@@ -1,14 +1,15 @@
-"""Backward-compatible entry point for the Report Builder.
+"""Compatibility wrapper for the Report Builder.
 
-PDF generation is intentionally removed from the user workflow because the
-Instruction requires a 30-40 page editable final report. The main application
-still imports this function in the current release, so it now renders the
-Report Builder and stops the old PDF flow before a PDF download is offered.
+The final report is intentionally kept editable rather than generated as PDF.
+The main application still imports this function in the current release, so
+this wrapper renders the new builder and stops the legacy PDF section.
 """
+
+import streamlit as st
 
 from services.report_ui import render_report_builder
 
 
 def build_integrated_report(profile, financials, case01, case02, case03, consistency_results, *, project_id=None, student_id=None):
-    render_report_builder(None, project_id, student_id, profile, financials, case01, case02, case03)
-    return b""
+    render_report_builder(st, project_id, student_id, profile, financials, case01, case02, case03)
+    st.stop()
