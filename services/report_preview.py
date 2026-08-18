@@ -1,17 +1,24 @@
 """Preview images used by Report Builder.
 
-The preview layer uses the same aesthetic diagram functions that are injected
-into the Word exporter, so the user sees the same visual output before export.
+The preview layer uses the same diagram functions that are injected into the
+Word exporter, so the user sees the same visual output before export.
 """
-from services.diagram_styles import (
-    architecture_figure,
-    flow_figure,
-    heatmap_figure,
-    roadmap_figure,
-)
+from services.diagram_styles import architecture_figure, flow_figure, roadmap_figure
+from services.risk_matrix import heatmap_figure
+
+
+def _patch_word_risk_matrix():
+    """Đồng bộ ma trận rủi ro xem trước với hình đưa vào Word."""
+    try:
+        import services.report_docx_enhanced as renderer
+        renderer.heatmap_figure = heatmap_figure
+    except Exception:
+        # Không làm Report Builder sập chỉ vì bộ xuất Word chưa tải được.
+        pass
 
 
 def preview_figures(case01, case02, case03):
+    _patch_word_risk_matrix()
     return {
         "As-is Process": flow_figure(
             "Quy trình As-is",
