@@ -1,9 +1,9 @@
 """Preview images used by Report Builder.
 
-Kept separate from the Word exporter so Streamlit can always import the
-preview layer independently and show the same diagram sources before export.
+The preview layer uses the same aesthetic diagram functions that are injected
+into the Word exporter, so the user sees the same visual output before export.
 """
-from services.report_docx_enhanced import (
+from services.diagram_styles import (
     architecture_figure,
     flow_figure,
     heatmap_figure,
@@ -14,12 +14,12 @@ from services.report_docx_enhanced import (
 def preview_figures(case01, case02, case03):
     return {
         "As-is Process": flow_figure(
-            "As-is Process",
+            "Quy trình As-is",
             [x.get("Hành động", "") for x in case01.get("as_is", [])],
         ),
         "Kiến trúc Blockchain liên minh": architecture_figure(case01),
         "To-be Process": flow_figure(
-            "To-be Process",
+            "Quy trình To-be",
             [x.get("Hành động", "") for x in case02.get("to_be", [])],
         ),
         "Vòng đời token": flow_figure(
