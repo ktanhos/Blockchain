@@ -1,3 +1,4 @@
+import json
 import streamlit as st
 import pandas as pd
 
@@ -9,10 +10,12 @@ from services.case02_ui import render_case02
 from services.case03 import default_case03
 from services.case03_ui import render_case03
 from services.consistency import check_consistency
+from services.instruction_engine import validate_case01, validate_case02, validate_case03
+from services.report_pdf import build_integrated_report
 
 st.set_page_config(page_title="Blockchain Finance Case Study", page_icon="⛓️", layout="wide")
 st.title("Blockchain trong Tài chính và Ngân hàng")
-st.caption("Phiên bản 1.1 · Case 01 + Case 02 + Case 03 + Consistency Checker")
+st.caption("Phiên bản 1.2 · Case 01 + Case 02 + Case 03 + Consistency + Báo cáo")
 
 st.sidebar.header("Hồ sơ sinh viên")
 student_id = st.sidebar.text_input("Mã số sinh viên", value="")
@@ -27,6 +30,8 @@ except ValueError as exc:
     st.error(str(exc))
     st.stop()
 
+# Giữ MSSV trong hồ sơ để báo cáo và các module dùng cùng một nguồn dữ liệu.
+profile["student_id"] = student_id
 project_id = f"student_{''.join(ch for ch in student_id if ch.isdigit())}"
 existing = load_project(project_id)
 if "project_id" not in st.session_state or st.session_state.get("project_id") != project_id:
@@ -66,11 +71,12 @@ profile_df = pd.DataFrame({
 st.dataframe(profile_df, width="stretch", hide_index=True)
 st.divider()
 
-case01_tab, case02_tab, case03_tab, check_tab = st.tabs([
+case01_tab, case02_tab, case03_tab, check_tab, report_tab = st.tabs([
     "Case 01 · Kiến trúc Blockchain",
     "Case 02 · Tín dụng Blockchain",
     "Case 03 · Huy động vốn bằng token",
     "Kiểm tra tính nhất quán",
+    "Báo cáo · Xem và xuất PDF",
 ])
 
 with case01_tab:
@@ -183,7 +189,6 @@ with case01_tab:
         permissions.append({"Chủ thể": member, "Đọc": True, "Ghi": False, "Xác thực": False, "Quản trị": False, "Tạm dừng": False})
     case01["permissions"] = permissions
 
-    # Quan trọng: st.data_editor nhận DataFrame để kết quả luôn là DataFrame.
     permissions_df = pd.DataFrame(case01.get("permissions", []))
     perm_edited = st.data_editor(
         permissions_df,
@@ -268,3 +273,79 @@ with check_tab:
         st.session_state.consistency = results
         save_all()
         st.success("Đã lưu trạng thái dự án.")
+
+with report_tab:
+    st.header("Báo cáo tổng hợp · Xem và xuất PDF")
+    st.caption("Báo cáo được tạo từ dữ liệu đã nhập. Nội dung không tự ý thay đổi yêu cầu của Instruction File.")
+
+    report_project = load_project(project_id) or {}
+    report_case02 = report_project.get("case02") or {}
+    report_case03 = report_project.get("case03") or st.session_state.case03
+    report_results = check_consistency(profile, financials, st.session_state.case01, report_case02, report_case03)
+    report_result_df = pd.DataFrame(report_results)
+    report_errors = sum(x["Trạng thái"] == "Lỗi" for x in report_results)
+
+    # Tổng quan mức độ hoàn thiện theo bộ quy tắc Instruction Engine.
+    case01_status = validate_case01(st.session_state.case01)
+    case02_status = validate_case02(report_case02)
+    case03_status = validate_case03(report_case03)
+    completed = sum(case01_status.values()) + sum(case02_status.values()) + sum(case03_status.values())
+    total = len(case01_status) + len(case02_status) + len(case03_status)
+    completion_pct = completed / total * 100 if total else 0
+
+    m1, m2, m3 = st.columns(3)
+    m1.metric("Mức độ hoàn thiện theo Instruction", f"{completion_pct:.0f}%")
+    m2.metric("Kiểm tra liên kết", f"{len(report_results) - report_errors}/{len(report_results)}")
+    m3.metric("Điểm cần xử lý", report_errors)
+
+    st.subheader("Trạng thái từng Case")
+    case_status_df = pd.DataFrame([
+        {"Case": "Case 01", "Đạt yêu cầu": sum(case01_status.values()), "Tổng yêu cầu": len(case01_status), "Tỷ lệ": f"{sum(case01_status.values()) / len(case01_status) * 100:.0f}%"},
+        {"Case": "Case 02", "Đạt yêu cầu": sum(case02_status.values()), "Tổng yêu cầu": len(case02_status), "Tỷ lệ": f"{sum(case02_status.values()) / len(case02_status) * 100:.0f}%"},
+        {"Case": "Case 03", "Đạt yêu cầu": sum(case03_status.values()), "Tổng yêu cầu": len(case03_status), "Tỷ lệ": f"{sum(case03_status.values()) / len(case03_status) * 100:.0f}%"},
+    ])
+    st.dataframe(case_status_df, width="stretch", hide_index=True)
+
+    st.subheader("Các điểm cần hoàn thiện")
+    if report_errors:
+        st.dataframe(report_result_df[report_result_df["Trạng thái"] == "Lỗi"], width="stretch", hide_index=True)
+    else:
+        st.success("Không còn điểm lỗi trong 22 kiểm tra liên kết.")
+
+    st.subheader("Xem nhanh nội dung báo cáo")
+    preview_cols = st.columns(3)
+    preview_cols[0].write(f"Doanh nghiệp: {profile.get('business_type', '')}")
+    preview_cols[0].write(f"Ngành: {profile.get('industry', '')}")
+    preview_cols[1].write(f"Tổng nhu cầu vốn: {financials.get('V', 0):,.2f} tỷ đồng")
+    preview_cols[1].write(f"Khoản vay: {financials.get('LoanAmount', 0):,.2f} tỷ đồng")
+    preview_cols[2].write(f"Vốn còn thiếu: {financials.get('ExternalCapital', 0):,.2f} tỷ đồng")
+    preview_cols[2].write(f"Blockchain: {st.session_state.case01.get('architecture', {}).get('blockchain_type', '')}")
+
+    st.info("Báo cáo PDF là bản tổng hợp dữ liệu hiện có. Theo Instruction File, báo cáo cuối kỳ yêu cầu 30–40 trang, có mục lục, danh mục bảng, danh mục hình, trích dẫn, tài liệu tham khảo và file tính toán. Ứng dụng hỗ trợ tạo bản nháp dữ liệu; sinh viên vẫn cần rà soát và hoàn thiện phần phân tích, trích dẫn và trình bày trước khi nộp.")
+
+    report_bytes = build_integrated_report(profile, financials, st.session_state.case01, report_case02, report_case03, report_results)
+    filename = f"Bao_cao_Blockchain_{''.join(ch for ch in student_id if ch.isdigit())}.pdf"
+    st.download_button(
+        "Xuất báo cáo PDF",
+        data=report_bytes,
+        file_name=filename,
+        mime="application/pdf",
+        width="stretch",
+    )
+
+    project_json = {
+        "student_id": student_id,
+        "profile": profile,
+        "financials": financials,
+        "case01": st.session_state.case01,
+        "case02": report_case02,
+        "case03": report_case03,
+        "consistency": report_results,
+    }
+    st.download_button(
+        "Xuất toàn bộ dữ liệu dự án JSON",
+        data=json.dumps(project_json, ensure_ascii=False, indent=2, default=str),
+        file_name=f"Blockchain_Project_{''.join(ch for ch in student_id if ch.isdigit())}.json",
+        mime="application/json",
+        width="stretch",
+    )
