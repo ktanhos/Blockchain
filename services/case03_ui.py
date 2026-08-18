@@ -9,6 +9,11 @@ def render_case03(st, profile, financials, case02=None, save_callback=None):
     case03 = st.session_state.case03
     case02 = case02 or st.session_state.get("case02", {})
 
+    # Case 03 kế thừa kiến trúc và thành viên thực tế từ Case 02.
+    case03["blockchain_type"] = case02.get("blockchain_type", case03.get("blockchain_type", ""))
+    case03["members"] = list(case02.get("members", case03.get("members", [])))
+    case03["consensus"] = case02.get("consensus", case03.get("consensus", ""))
+
     # Tạo liên kết rủi ro thực tế từ Case 02. Không ép đạt: sinh viên vẫn có thể xóa hoặc chỉnh sửa.
     if not case03.get("risk_inheritance_initialized"):
         existing_names = {str(r.get("Rủi ro", "")).strip() for r in case03.get("risks", [])}
