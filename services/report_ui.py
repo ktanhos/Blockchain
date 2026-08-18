@@ -7,7 +7,7 @@ from services.report_builder import REPORT_SECTIONS, default_report, report_word
 from services.instruction_engine import validate_case01, validate_case02, validate_case03
 from services.consistency import check_consistency
 from services.report_quality import build_quality_report, quality_summary
-from services.report_docx import build_docx
+from services.report_docx_enhanced import build_docx, preview_figures
 
 
 def _records_for_section(section_id, case01, case02, case03):
@@ -44,6 +44,26 @@ def _save_report(project_id, student_id, profile, case01, case02, case03, report
     save_project(project_id, student_id, profile, case01, case02, case03, report)
 
 
+def _show_diagram_preview(case01, case02, case03):
+    st.divider()
+    st.markdown("### Xem trước sơ đồ trước khi tạo Word")
+    st.caption("Các hình dưới đây là đúng nguồn hình mà bộ xuất Word sử dụng. Nếu Word hiển thị không đúng, có thể chụp hoặc tải trực tiếp hình từ đây để đưa vào báo cáo thủ công.")
+    figures = preview_figures(case01, case02, case03)
+    names = list(figures.keys())
+    tabs = st.tabs(names)
+    for tab, name in zip(tabs, names):
+        with tab:
+            image = figures[name]
+            st.image(image, width="stretch")
+            st.download_button(
+                f"Tải hình {name}",
+                data=image.getvalue(),
+                file_name=f"{name.replace(' ', '_').replace('/', '_')}.png",
+                mime="image/png",
+                key=f"download_figure_{name}",
+            )
+
+
 def render_report_builder(st_module, project_id, student_id, profile, financials, case01, case02, case03):
     project = load_project(project_id) or {}
     report = project.get("report") or default_report()
@@ -76,8 +96,7 @@ def render_report_builder(st_module, project_id, student_id, profile, financials
         st.success("Quality Gate đạt.")
 
     with st.expander("Quality Gate · Kiểm tra trước khi xuất", expanded=True):
-        qdf = pd.DataFrame(quality_checks)
-        st.dataframe(qdf, width="stretch", hide_index=True)
+        st.dataframe(pd.DataFrame(quality_checks), width="stretch", hide_index=True)
         st.caption("Cảnh báo không tự động biến thành lỗi. Các tiêu chí học thuật và liên kết Case vẫn phải được sinh viên kiểm tra.")
 
     section_labels = [f"{i + 1}. {s['title']}" for i, s in enumerate(REPORT_SECTIONS)]
@@ -123,8 +142,8 @@ def render_report_builder(st_module, project_id, student_id, profile, financials
             st.write(f"Khoản vay: {financials.get('LoanAmount', 0):,.2f} tỷ đồng")
             st.write(f"Vốn còn thiếu: {financials.get('ExternalCapital', 0):,.2f} tỷ đồng")
             if sid == "part4":
-                st.write(f"DSCR: {case02.get('DSCR', financials.get('DSCR', '')):,.2f}")
-                st.write(f"LTV: {case02.get('LTV', financials.get('LTV', '')) * 100:,.2f}%")
+                st.write(f"DSCR: {case02.get('DSCR', financials.get('DSCR', 0)):,.2f}")
+                st.write(f"LTV: {case02.get('LTV', financials.get('LTV', 0)) * 100:,.2f}%")
             if sid == "part5":
                 st.write(f"Công cụ huy động: {profile.get('funding_instrument', '')}")
             for title, rows in _records_for_section(sid, case01, case02, case03):
@@ -143,11 +162,12 @@ def render_report_builder(st_module, project_id, student_id, profile, financials
             for title, rows in _records_for_section(s["id"], case01, case02, case03):
                 _show_records(title, rows)
 
+    _show_diagram_preview(case01, case02, case03)
     _save_report(project_id, student_id, profile, case01, case02, case03, report)
 
     st.divider()
     st.markdown("### Tạo báo cáo Word")
-    st.write("Word được tạo bằng bảng Word thật, Heading thật, Caption tự động, mục lục, danh mục bảng, danh mục hình, sơ đồ và phụ lục.")
+    st.write("Bộ xuất mới dùng bảng Word thật, không thụt đầu dòng trong ô, tự chuyển bảng nhiều cột sang trang ngang, và dùng chính các sơ đồ đã xem trước ở trên.")
 
     if qs["errors"] == 0:
         docx_bytes = build_docx(profile, financials, case01, case02, case03, report, consistency, quality_checks)
