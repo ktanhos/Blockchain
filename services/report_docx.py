@@ -31,10 +31,9 @@ def _add_table(document, records, title=None, max_rows=80):
 
 def _add_toc_field(document):
     p = document.add_paragraph()
-    run = p.add_run()
     fld = OxmlElement("w:fldSimple")
-    fld.set(qn("w:instr"), 'TOC \\o "1-3" \\h \\z \\u')
-    run._r.addnext(fld)
+    fld.set(qn("w:instr"), r'TOC \o "1-3" \h \z \u')
+    p._p.append(fld)
 
 
 def build_docx(profile, financials, case01, case02, case03, report, consistency_results):
