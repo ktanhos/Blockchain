@@ -1,11 +1,14 @@
 import json
+import copy
 import streamlit as st
 import pandas as pd
 
 from database import load_project, save_project
 from services.personalization import build_case_profile
 from services.financial import calculate_financials
-from services.case01 import default_case01, MEMBERS, risk_dataframe
+from services.case01 import default_case01
+from services.case01_ui import render_case01
+from services.case02 import default_case02
 from services.case02_ui import render_case02
 from services.case03 import default_case03
 from services.case03_ui import render_case03
@@ -15,47 +18,67 @@ from services.report_pdf import build_integrated_report
 
 st.set_page_config(page_title="Blockchain Finance Case Study", page_icon="⛓️", layout="wide")
 st.title("Blockchain trong Tài chính và Ngân hàng")
-st.caption("Phiên bản 1.2 · Case 01 + Case 02 + Case 03 + Consistency + Báo cáo")
+st.caption("Case 01 → Case 02 → Case 03 → Consistency Checker → Báo cáo")
 
 st.sidebar.header("Hồ sơ sinh viên")
-student_id = st.sidebar.text_input("Mã số sinh viên", value="")
-
+student_id = st.sidebar.text_input("Mã số sinh viên", key="global_student_id")
 if not student_id:
     st.info("Nhập mã số sinh viên ở thanh bên để bắt đầu.")
     st.stop()
 
+digits = "".join(ch for ch in student_id if ch.isdigit())
+if len(digits) < 4:
+    st.error("Mã số sinh viên phải có ít nhất 4 chữ số.")
+    st.stop()
+project_id = f"student_{digits}"
+existing = load_project(project_id) or {}
+
+# Khôi phục mô tả doanh nghiệp trước khi personalization chạy để không mất khi tải lại trình duyệt.
+if existing.get("profile", {}).get("business_description") and "business_description" not in st.session_state:
+    st.session_state.business_description = existing["profile"]["business_description"]
 try:
     profile = build_case_profile(student_id)
 except ValueError as exc:
     st.error(str(exc))
     st.stop()
-
-# Giữ MSSV trong hồ sơ để báo cáo và các module dùng cùng một nguồn dữ liệu.
 profile["student_id"] = student_id
-project_id = f"student_{''.join(ch for ch in student_id if ch.isdigit())}"
-existing = load_project(project_id)
-if "project_id" not in st.session_state or st.session_state.get("project_id") != project_id:
-    st.session_state.project_id = project_id
-    st.session_state.case01 = existing["case01"] if existing and existing.get("case01") else default_case01()
-    st.session_state.case03 = existing["case03"] if existing and existing.get("case03") else default_case03(profile, calculate_financials(profile))
+if existing.get("profile", {}).get("business_description") and not profile.get("business_description"):
+    profile["business_description"] = existing["profile"]["business_description"]
+    st.session_state.business_description = profile["business_description"]
 
-case01 = st.session_state.case01
 financials = calculate_financials(profile)
 
-# Bảo đảm dữ liệu cũ vẫn tương thích sau khi cập nhật giao diện.
+if st.session_state.get("project_id") != project_id:
+    st.session_state.project_id = project_id
+    st.session_state.case01 = copy.deepcopy(existing.get("case01") or default_case01())
+    st.session_state.case02 = copy.deepcopy(existing.get("case02") or default_case02(financials, st.session_state.case01))
+    st.session_state.case03 = copy.deepcopy(existing.get("case03") or default_case03(profile, financials))
+else:
+    st.session_state.setdefault("case01", copy.deepcopy(existing.get("case01") or default_case01()))
+    st.session_state.setdefault("case02", copy.deepcopy(existing.get("case02") or default_case02(financials, st.session_state.case01)))
+    st.session_state.setdefault("case03", copy.deepcopy(existing.get("case03") or default_case03(profile, financials)))
+
+case01 = st.session_state.case01
+case02 = st.session_state.case02
+case03 = st.session_state.case03
+
+# Tương thích dữ liệu cũ.
 case01.setdefault("permissions", [])
 case01.setdefault("data", [])
 case01.setdefault("assessment", [])
 case01.setdefault("risks", [])
 case01.setdefault("architecture", {})
 case01.setdefault("governance", {})
+case02.setdefault("oracle", [])
+case02.setdefault("risks", [])
+case03.setdefault("risks", [])
 
-st.sidebar.success("Hồ sơ đã được cá nhân hóa")
 
 def save_all():
-    save_project(project_id, student_id, profile, st.session_state.case01, {}, st.session_state.case03)
+    save_project(project_id, student_id, profile, st.session_state.case01, st.session_state.case02, st.session_state.case03)
 
-if st.sidebar.button("Lưu toàn bộ"):
+st.sidebar.success("Hồ sơ đã được cá nhân hóa")
+if st.sidebar.button("Lưu toàn bộ", type="primary", key="save_all_button"):
     save_all()
     st.sidebar.success("Đã lưu toàn bộ dữ liệu dự án")
 
@@ -63,202 +86,28 @@ st.subheader("Hồ sơ case cá nhân")
 cols = st.columns(4)
 for col, key in zip(cols, ["D1", "D2", "D3", "D4"]):
     col.metric(key, profile[key])
-
-profile_df = pd.DataFrame({
-    "Thông số": ["Ngành hoạt động", "Loại hình doanh nghiệp", "Vấn đề ngân hàng trọng tâm", "Công cụ huy động vốn Case 03"],
-    "Giá trị": [profile["industry"], profile["business_type"], profile["banking_problem"], profile["funding_instrument"]],
-})
+profile_df = pd.DataFrame({"Thông số": ["Ngành hoạt động", "Loại hình doanh nghiệp", "Vấn đề ngân hàng trọng tâm", "Công cụ huy động vốn Case 03"], "Giá trị": [profile["industry"], profile["business_type"], profile["banking_problem"], profile["funding_instrument"]]})
 st.dataframe(profile_df, width="stretch", hide_index=True)
+if profile.get("business_description"):
+    with st.expander("Mô tả hoạt động doanh nghiệp", expanded=True):
+        st.write(profile["business_description"])
 st.divider()
 
-case01_tab, case02_tab, case03_tab, check_tab, report_tab = st.tabs([
-    "Case 01 · Kiến trúc Blockchain",
-    "Case 02 · Tín dụng Blockchain",
-    "Case 03 · Huy động vốn bằng token",
-    "Kiểm tra tính nhất quán",
-    "Báo cáo · Xem và xuất PDF",
-])
+case01_tab, case02_tab, case03_tab, check_tab, report_tab = st.tabs(["Case 01 · Kiến trúc Blockchain", "Case 02 · Tín dụng Blockchain", "Case 03 · Huy động vốn bằng token", "Kiểm tra tính nhất quán", "Báo cáo"])
 
 with case01_tab:
-    st.header("Case 01 · Thiết kế kiến trúc Blockchain")
-
-    st.subheader("1. As-is Process")
-    st.caption("Có thể sửa trực tiếp từng ô, thêm dòng, xóa dòng và thay đổi thứ tự.")
-    as_is_df = pd.DataFrame(case01.get("as_is", []))
-    if "Thứ tự" not in as_is_df.columns:
-        as_is_df.insert(0, "Thứ tự", range(1, len(as_is_df) + 1))
-    as_is_df["Thứ tự"] = pd.to_numeric(as_is_df["Thứ tự"], errors="coerce")
-    missing = as_is_df["Thứ tự"].isna()
-    if missing.any():
-        as_is_df.loc[missing, "Thứ tự"] = range(1, int(missing.sum()) + 1)
-    as_is_df["Thứ tự"] = as_is_df["Thứ tự"].astype(int)
-    as_is_edited = st.data_editor(
-        as_is_df,
-        num_rows="dynamic",
-        width="stretch",
-        hide_index=True,
-        column_config={
-            "Thứ tự": st.column_config.NumberColumn("Thứ tự", min_value=1, step=1),
-            "Bước": st.column_config.NumberColumn("Bước", disabled=True),
-        },
-        key="as_is_editor",
-    )
-    as_is_edited["Thứ tự"] = pd.to_numeric(as_is_edited["Thứ tự"], errors="coerce")
-    missing = as_is_edited["Thứ tự"].isna()
-    if missing.any():
-        as_is_edited.loc[missing, "Thứ tự"] = range(1, int(missing.sum()) + 1)
-    as_is_edited["Thứ tự"] = as_is_edited["Thứ tự"].astype(int)
-    as_is_edited = as_is_edited.sort_values("Thứ tự", kind="stable").reset_index(drop=True)
-    as_is_edited["Bước"] = range(1, len(as_is_edited) + 1)
-    case01["as_is"] = as_is_edited.to_dict("records")
-
-    step_count = len(case01["as_is"])
-    if step_count >= 8:
-        st.success(f"Đạt yêu cầu số bước: {step_count} bước")
-    else:
-        st.warning(f"Chưa đạt tối thiểu 8 bước. Hiện có {step_count} bước.")
-    flow = [str(row.get("Hành động", "")) for row in case01["as_is"] if str(row.get("Hành động", "")).strip()]
-    st.write(" → ".join(flow))
-
-    st.subheader("2. Đánh giá CSDL tập trung so với Blockchain/DLT")
-    assessment_df = pd.DataFrame(case01.get("assessment", []))
-    assessment_edited = st.data_editor(
-        assessment_df,
-        num_rows="dynamic",
-        column_config={
-            "CSDL tập trung": st.column_config.NumberColumn(min_value=1, max_value=5, step=1),
-            "Blockchain/DLT": st.column_config.NumberColumn(min_value=1, max_value=5, step=1),
-        },
-        width="stretch",
-        hide_index=True,
-        key="assessment_editor",
-    )
-    case01["assessment"] = assessment_edited.to_dict("records")
-    score_db = pd.to_numeric(assessment_edited.get("CSDL tập trung", pd.Series(dtype=float)), errors="coerce").fillna(0).sum()
-    score_chain = pd.to_numeric(assessment_edited.get("Blockchain/DLT", pd.Series(dtype=float)), errors="coerce").fillna(0).sum()
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Tổng điểm CSDL", f"{score_db:.0f}")
-    c2.metric("Tổng điểm Blockchain/DLT", f"{score_chain:.0f}")
-    if score_chain > score_db:
-        c3.info("Blockchain có điểm cao hơn")
-    elif score_chain < score_db:
-        c3.info("CSDL có điểm cao hơn")
-    else:
-        c3.info("Hai phương án bằng điểm")
-
-    st.subheader("3. Kiến trúc mạng Blockchain")
-    arch = case01["architecture"]
-    decision_options = ["Go", "No-Go", "Hybrid"]
-    model_options = ["Blockchain công khai", "Blockchain riêng tư", "Blockchain liên minh", "Blockchain lai", "Không sử dụng blockchain"]
-    consensus_options = ["PBFT hoặc biến thể", "Proof of Authority", "Raft", "Xác nhận nhiều bên", "Biểu quyết theo tỷ lệ thành viên"]
-    ac1, ac2 = st.columns(2)
-    decision = arch.get("decision", "Hybrid")
-    model = arch.get("blockchain_type", "Blockchain liên minh")
-    consensus = arch.get("consensus", "PBFT hoặc biến thể")
-    arch["decision"] = ac1.selectbox("Quyết định", decision_options, index=decision_options.index(decision) if decision in decision_options else 2)
-    arch["blockchain_type"] = ac2.selectbox("Mô hình", model_options, index=model_options.index(model) if model in model_options else 2)
-
-    custom_members = arch.setdefault("custom_members", [])
-    member_options = list(dict.fromkeys(MEMBERS + custom_members))
-    arch["nodes"] = st.multiselect("Các thành viên/nút tham gia", member_options, default=[x for x in arch.get("nodes", []) if x in member_options])
-    new_member = st.text_input("Thêm thành viên/nút tùy chỉnh", key="new_member_name", placeholder="Ví dụ: Công ty bảo hiểm A")
-    if st.button("Thêm thành viên", key="add_member"):
-        new_member = new_member.strip()
-        if not new_member:
-            st.warning("Chưa nhập tên thành viên.")
-        elif new_member in member_options:
-            st.warning("Thành viên này đã tồn tại.")
-        else:
-            custom_members.append(new_member)
-            if new_member not in arch["nodes"]:
-                arch["nodes"].append(new_member)
-            case01["permissions"].append({"Chủ thể": new_member, "Đọc": True, "Ghi": False, "Xác thực": False, "Quản trị": False, "Tạm dừng": False})
-            st.rerun()
-
-    ac3, ac4 = st.columns(2)
-    arch["consensus"] = ac3.selectbox("Cơ chế đồng thuận", consensus_options, index=consensus_options.index(consensus) if consensus in consensus_options else 0)
-    max_validators = max(1, len(arch["nodes"]))
-    arch["validator_count"] = ac4.number_input("Số nút xác thực", min_value=1, max_value=max_validators, value=min(int(arch.get("validator_count", 4)), max_validators), step=1)
-    arch["completion"] = st.text_input("Thời điểm giao dịch được xem là hoàn tất", value=arch.get("completion", ""))
-
-    st.subheader("4. Ma trận quyền truy cập")
-    permission_members = set(arch.get("nodes", []))
-    permissions = case01.get("permissions", [])
-    existing_permission_members = {row.get("Chủ thể") for row in permissions}
-    for member in permission_members - existing_permission_members:
-        permissions.append({"Chủ thể": member, "Đọc": True, "Ghi": False, "Xác thực": False, "Quản trị": False, "Tạm dừng": False})
-    case01["permissions"] = permissions
-
-    permissions_df = pd.DataFrame(case01.get("permissions", []))
-    perm_edited = st.data_editor(
-        permissions_df,
-        num_rows="dynamic",
-        width="stretch",
-        hide_index=True,
-        key="permissions_editor",
-    )
-    case01["permissions"] = perm_edited.to_dict("records")
-
-    st.subheader("5. Phân loại dữ liệu On-chain và Off-chain")
-    data_df = pd.DataFrame(case01.get("data", []))
-    data_edited = st.data_editor(data_df, num_rows="dynamic", width="stretch", hide_index=True, key="data_editor")
-    case01["data"] = data_edited.to_dict("records")
-    invalid_storage = [row.get("Loại dữ liệu", "") for row in case01["data"] if bool(row.get("On-chain")) == bool(row.get("Off-chain"))]
-    if invalid_storage:
-        st.warning("Các dòng cần chọn đúng một vị trí lưu trữ: " + ", ".join(invalid_storage))
-
-    st.subheader("6. Đồng thuận và quản trị mạng")
-    gov = case01["governance"]
-    governance_fields = [
-        ("Chủ sở hữu nền tảng", "Ai sở hữu nền tảng?"),
-        ("Tiếp nhận thành viên", "Ai được tiếp nhận thành viên mới?"),
-        ("Thay đổi quy tắc", "Ai hoặc quy trình nào thay đổi quy tắc mạng?"),
-        ("Nâng cấp hợp đồng", "Ai được nâng cấp hợp đồng thông minh?"),
-        ("Tạm dừng hệ thống", "Ai có quyền tạm dừng hệ thống?"),
-        ("Trách nhiệm giao dịch sai", "Ai chịu trách nhiệm khi giao dịch hoặc dữ liệu sai?"),
-        ("Bồi thường", "Cơ chế bồi thường thiệt hại?"),
-        ("Tranh chấp", "Cơ chế giải quyết tranh chấp?"),
-        ("Lưu trữ dữ liệu", "Dữ liệu được lưu trữ tại đâu?"),
-        ("Thành viên rời mạng", "Xử lý thành viên rời mạng như thế nào?"),
-    ]
-    for key, label in governance_fields:
-        gov[key] = st.text_area(label, value=gov.get(key, ""), key=f"gov_{key}")
-
-    st.subheader("7. Risk Register")
-    risk_edited = st.data_editor(
-        risk_dataframe(case01.get("risks", [])),
-        num_rows="dynamic",
-        column_config={
-            "P": st.column_config.NumberColumn(min_value=1, max_value=5, step=1),
-            "I": st.column_config.NumberColumn(min_value=1, max_value=5, step=1),
-            "Điểm": st.column_config.NumberColumn(disabled=True),
-        },
-        width="stretch",
-        hide_index=True,
-        key="risk_editor",
-    )
-    case01["risks"] = risk_edited.to_dict("records")
-
-    st.subheader("8. Kết luận Case 01")
-    case01["conclusion"] = st.text_area("Kết luận của sinh viên", value=case01.get("conclusion", ""), height=120)
-    if st.button("Lưu Case 01", type="primary", key="save_case01"):
-        st.session_state.case01 = case01
-        save_project(project_id, student_id, profile, case01, case03=st.session_state.case03)
-        st.success("Đã lưu Case 01.")
+    st.session_state.case01 = render_case01(st, st.session_state.case01)
 
 with case02_tab:
-    render_case02(st, financials)
+    st.session_state.case02 = render_case02(st, financials, st.session_state.case01)
 
 with case03_tab:
-    render_case03(st, profile, financials, save_callback=lambda data: save_project(project_id, student_id, profile, st.session_state.case01, {}, data))
+    st.session_state.case03 = render_case03(st, profile, financials, st.session_state.case02, save_callback=lambda data: save_project(project_id, student_id, profile, st.session_state.case01, st.session_state.case02, data))
 
 with check_tab:
     st.header("Consistency Checker · Kiểm tra liên kết ba Case")
-    st.caption("Kiểm tra tự động 22 câu hỏi liên kết giữa Case 01, Case 02 và Case 03.")
-    existing_project = load_project(project_id) or {}
-    case02_saved = existing_project.get("case02") or {}
-    case03_saved = existing_project.get("case03") or st.session_state.case03
-    results = check_consistency(profile, financials, st.session_state.case01, case02_saved, case03_saved)
+    st.caption("Kiểm tra 22 yêu cầu liên kết. Lỗi chỉ được chuyển thành Đạt khi dữ liệu thực sự tồn tại và nhất quán.")
+    results = check_consistency(profile, financials, st.session_state.case01, st.session_state.case02, st.session_state.case03)
     result_df = pd.DataFrame(results)
     st.dataframe(result_df, width="stretch", hide_index=True)
     errors = sum(x["Trạng thái"] == "Lỗi" for x in results)
@@ -268,84 +117,50 @@ with check_tab:
     if errors == 0:
         st.success("Không phát hiện lỗi trong 22 kiểm tra.")
     else:
-        st.error(f"Phát hiện {errors} điểm cần xử lý trước khi nộp.")
+        st.error(f"Phát hiện {errors} điểm cần xử lý.")
     if st.button("Lưu kết quả kiểm tra", key="save_consistency"):
         st.session_state.consistency = results
         save_all()
         st.success("Đã lưu trạng thái dự án.")
 
 with report_tab:
-    st.header("Báo cáo tổng hợp · Xem và xuất PDF")
-    st.caption("Báo cáo được tạo từ dữ liệu đã nhập. Nội dung không tự ý thay đổi yêu cầu của Instruction File.")
-
-    report_project = load_project(project_id) or {}
-    report_case02 = report_project.get("case02") or {}
-    report_case03 = report_project.get("case03") or st.session_state.case03
-    report_results = check_consistency(profile, financials, st.session_state.case01, report_case02, report_case03)
-    report_result_df = pd.DataFrame(report_results)
-    report_errors = sum(x["Trạng thái"] == "Lỗi" for x in report_results)
-
-    # Tổng quan mức độ hoàn thiện theo bộ quy tắc Instruction Engine.
+    st.header("Báo cáo tổng hợp")
+    results = check_consistency(profile, financials, st.session_state.case01, st.session_state.case02, st.session_state.case03)
     case01_status = validate_case01(st.session_state.case01)
-    case02_status = validate_case02(report_case02)
-    case03_status = validate_case03(report_case03)
+    case02_status = validate_case02(st.session_state.case02)
+    case03_status = validate_case03(st.session_state.case03)
     completed = sum(case01_status.values()) + sum(case02_status.values()) + sum(case03_status.values())
     total = len(case01_status) + len(case02_status) + len(case03_status)
-    completion_pct = completed / total * 100 if total else 0
-
+    errors = sum(x["Trạng thái"] == "Lỗi" for x in results)
     m1, m2, m3 = st.columns(3)
-    m1.metric("Mức độ hoàn thiện theo Instruction", f"{completion_pct:.0f}%")
-    m2.metric("Kiểm tra liên kết", f"{len(report_results) - report_errors}/{len(report_results)}")
-    m3.metric("Điểm cần xử lý", report_errors)
-
-    st.subheader("Trạng thái từng Case")
-    case_status_df = pd.DataFrame([
+    m1.metric("Mức độ hoàn thiện theo Instruction", f"{completed / total * 100:.0f}%" if total else "0%")
+    m2.metric("Kiểm tra liên kết", f"{len(results) - errors}/{len(results)}")
+    m3.metric("Điểm cần xử lý", errors)
+    status_df = pd.DataFrame([
         {"Case": "Case 01", "Đạt yêu cầu": sum(case01_status.values()), "Tổng yêu cầu": len(case01_status), "Tỷ lệ": f"{sum(case01_status.values()) / len(case01_status) * 100:.0f}%"},
         {"Case": "Case 02", "Đạt yêu cầu": sum(case02_status.values()), "Tổng yêu cầu": len(case02_status), "Tỷ lệ": f"{sum(case02_status.values()) / len(case02_status) * 100:.0f}%"},
         {"Case": "Case 03", "Đạt yêu cầu": sum(case03_status.values()), "Tổng yêu cầu": len(case03_status), "Tỷ lệ": f"{sum(case03_status.values()) / len(case03_status) * 100:.0f}%"},
     ])
-    st.dataframe(case_status_df, width="stretch", hide_index=True)
-
-    st.subheader("Các điểm cần hoàn thiện")
-    if report_errors:
-        st.dataframe(report_result_df[report_result_df["Trạng thái"] == "Lỗi"], width="stretch", hide_index=True)
+    st.dataframe(status_df, width="stretch", hide_index=True)
+    if errors:
+        st.dataframe(pd.DataFrame(results).query("Trạng thái == 'Lỗi'"), width="stretch", hide_index=True)
     else:
-        st.success("Không còn điểm lỗi trong 22 kiểm tra liên kết.")
+        st.success("Không còn điểm lỗi trong bộ kiểm tra liên kết.")
+    st.subheader("Xem nhanh")
+    p1, p2, p3 = st.columns(3)
+    p1.write(f"Doanh nghiệp: {profile.get('business_type', '')}")
+    p1.write(f"Ngành: {profile.get('industry', '')}")
+    p2.write(f"Tổng nhu cầu vốn: {financials.get('V', 0):,.2f} tỷ đồng")
+    p2.write(f"Khoản vay: {financials.get('LoanAmount', 0):,.2f} tỷ đồng")
+    p3.write(f"Vốn còn thiếu: {financials.get('ExternalCapital', 0):,.2f} tỷ đồng")
+    p3.write(f"Blockchain: {st.session_state.case01.get('architecture', {}).get('blockchain_type', '')}")
+    st.info("Bản báo cáo được tổng hợp từ dữ liệu Case 01, Case 02 và Case 03. Sinh viên vẫn phải hoàn thiện phần phân tích, trích dẫn và trình bày theo Instruction File.")
+    report_bytes = build_integrated_report(profile, financials, st.session_state.case01, st.session_state.case02, st.session_state.case03, results)
+    filename = f"Bao_cao_Blockchain_{digits}.pdf"
+    st.download_button("Xuất báo cáo", data=report_bytes, file_name=filename, mime="application/pdf", width="stretch")
+    project_json = {"student_id": student_id, "profile": profile, "financials": financials, "case01": st.session_state.case01, "case02": st.session_state.case02, "case03": st.session_state.case03, "consistency": results}
+    st.download_button("Xuất toàn bộ dữ liệu dự án JSON", data=json.dumps(project_json, ensure_ascii=False, indent=2, default=str), file_name=f"Blockchain_Project_{digits}.json", mime="application/json", width="stretch")
 
-    st.subheader("Xem nhanh nội dung báo cáo")
-    preview_cols = st.columns(3)
-    preview_cols[0].write(f"Doanh nghiệp: {profile.get('business_type', '')}")
-    preview_cols[0].write(f"Ngành: {profile.get('industry', '')}")
-    preview_cols[1].write(f"Tổng nhu cầu vốn: {financials.get('V', 0):,.2f} tỷ đồng")
-    preview_cols[1].write(f"Khoản vay: {financials.get('LoanAmount', 0):,.2f} tỷ đồng")
-    preview_cols[2].write(f"Vốn còn thiếu: {financials.get('ExternalCapital', 0):,.2f} tỷ đồng")
-    preview_cols[2].write(f"Blockchain: {st.session_state.case01.get('architecture', {}).get('blockchain_type', '')}")
-
-    st.info("Báo cáo PDF là bản tổng hợp dữ liệu hiện có. Theo Instruction File, báo cáo cuối kỳ yêu cầu 30–40 trang, có mục lục, danh mục bảng, danh mục hình, trích dẫn, tài liệu tham khảo và file tính toán. Ứng dụng hỗ trợ tạo bản nháp dữ liệu; sinh viên vẫn cần rà soát và hoàn thiện phần phân tích, trích dẫn và trình bày trước khi nộp.")
-
-    report_bytes = build_integrated_report(profile, financials, st.session_state.case01, report_case02, report_case03, report_results)
-    filename = f"Bao_cao_Blockchain_{''.join(ch for ch in student_id if ch.isdigit())}.pdf"
-    st.download_button(
-        "Xuất báo cáo PDF",
-        data=report_bytes,
-        file_name=filename,
-        mime="application/pdf",
-        width="stretch",
-    )
-
-    project_json = {
-        "student_id": student_id,
-        "profile": profile,
-        "financials": financials,
-        "case01": st.session_state.case01,
-        "case02": report_case02,
-        "case03": report_case03,
-        "consistency": report_results,
-    }
-    st.download_button(
-        "Xuất toàn bộ dữ liệu dự án JSON",
-        data=json.dumps(project_json, ensure_ascii=False, indent=2, default=str),
-        file_name=f"Blockchain_Project_{''.join(ch for ch in student_id if ch.isdigit())}.json",
-        mime="application/json",
-        width="stretch",
-    )
+# Tự động lưu sau mỗi lần rerun để thao tác nhập liệu không bị mất khi chuyển tab hoặc refresh nhẹ.
+save_all()
+st.caption("Đã đồng bộ dữ liệu dự án vào bộ nhớ lưu trữ.")
