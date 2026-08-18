@@ -1,3 +1,4 @@
+import copy
 import pandas as pd
 
 
@@ -78,3 +79,29 @@ def scenario_dataframe(financials: dict) -> pd.DataFrame:
     for name, data in scenario_defaults(financials).items():
         rows.append({"Kịch bản": name, "Doanh thu": data["Revenue1"], "Biên EBITDA": data["EbitdaMargin"], "EBITDA": data["EBITDA1"], "DSCR": data["DSCR"], "Giá trị tài sản bảo đảm": data["CollateralValue"], "LTV": data["LTV"]})
     return pd.DataFrame(rows)
+
+
+def default_case02(financials: dict, case01: dict | None = None) -> dict:
+    case01 = case01 or {}
+    inherited_risks = copy.deepcopy(case01.get("risks", []))
+    if not inherited_risks:
+        inherited_risks = [{"Rủi ro": "KYC và dữ liệu định danh", "Nguyên nhân": "Dữ liệu giữa các hệ thống không đồng nhất", "P": 3, "I": 5, "Điểm": 15, "Biện pháp kiểm soát": "Đối chiếu KYC và nguồn xác minh", "Chủ sở hữu": "FutureBank"}]
+    return {
+        "blockchain_type": case01.get("architecture", {}).get("blockchain_type", "Blockchain liên minh"),
+        "members": list(case01.get("architecture", {}).get("nodes", [])),
+        "consensus": case01.get("architecture", {}).get("consensus", "PBFT hoặc biến thể"),
+        "kyc_reuse": True,
+        "kyc_reference": "Sử dụng lại hệ thống KYC và quy trình xác minh đã xác định tại Case 01.",
+        "oracle": oracle_defaults(),
+        "oracle_reuse": True,
+        "emergency_pause": True,
+        "pause_authority": "FutureBank kích hoạt tạm dừng khẩn cấp trong phạm vi được cấp phép; khôi phục theo cơ chế quản trị liên minh.",
+        "upgrade_authority": "Quyền nâng cấp hợp đồng thuộc cơ chế phê duyệt nhiều bên theo quản trị liên minh.",
+        "smart_contract": "KYC hợp lệ, AML không có cảnh báo, hóa đơn hợp lệ và giao hàng đã xác nhận mới đủ điều kiện giải ngân; LTV vượt ngưỡng thì kích hoạt cơ chế cảnh báo hoặc xử lý tài sản.",
+        "to_be": [],
+        "scenarios": ["Cơ sở", "Thuận lợi", "Bất lợi"],
+        "risks": inherited_risks,
+        "DSCR": float(financials.get("DSCR", 0)),
+        "LTV": float(financials.get("LTV", 0)),
+        "conclusion": "Case 02 cần đánh giá tín dụng trên dữ liệu được chia sẻ và xác minh từ Case 01, kết hợp Oracle và hợp đồng thông minh để kiểm soát điều kiện giải ngân.",
+    }
