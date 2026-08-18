@@ -1,11 +1,14 @@
 """Bộ dựng sơ đồ dùng chung cho Report Builder.
 
-Mục tiêu là giữ nguyên dữ liệu đầu vào nhưng cải thiện cấu trúc thị giác:
-phân cấp tiêu đề rõ, khoảng trắng hợp lý, nhãn không chồng lấn và bố cục
-phù hợp với báo cáo học thuật. Các nguyên tắc tham khảo từ bài viết về
-trực quan hóa Python của Phạm Đình Khánh: chọn loại biểu đồ theo mục đích,
-đặt tiêu đề và nhãn rõ ràng, dùng điểm đánh dấu khi cần và dùng ma trận màu
-cho dữ liệu rủi ro. Không thay đổi dữ liệu Case.
+Nguyên tắc thiết kế:
+
+1. Sơ đồ chỉ minh họa cấu trúc hoặc quan hệ chính.
+2. Không nhồi toàn bộ dữ liệu chi tiết vào hình.
+3. Chi tiết dài phải nằm trong bảng hoặc phần nhận xét của báo cáo.
+4. Hình phải đọc được khi đặt trên trang A4.
+5. Preview trên Streamlit và hình chèn vào Word dùng cùng một bộ dựng.
+
+Không thay đổi dữ liệu đầu vào của Case.
 """
 from __future__ import annotations
 
@@ -17,7 +20,7 @@ import textwrap
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-from matplotlib.patches import FancyBboxPatch, Rectangle
+from matplotlib.patches import FancyBboxPatch, Rectangle, Circle
 
 FONT_NAME = "DejaVu Sans"
 NAVY = "#17324D"
@@ -36,34 +39,86 @@ RISK_HIGH = "#F5D1CE"
 RISK_CRITICAL = "#D99595"
 
 
-def _new_figure(width=11, height=6):
+def _new_figure(width=11.2, height=6.2):
     fig = plt.figure(figsize=(width, height), facecolor=WHITE)
     fig.patch.set_facecolor(WHITE)
     return fig
 
 
 def _header(fig, title, subtitle=None):
-    fig.text(0.055, 0.955, str(title).upper(), ha="left", va="top",
-             fontsize=16.5, fontweight="bold", color=NAVY)
+    fig.text(
+        0.055, 0.955, str(title), ha="left", va="top",
+        fontsize=16, fontweight="bold", color=NAVY,
+    )
     if subtitle:
-        fig.text(0.055, 0.915, str(subtitle), ha="left", va="top",
-                 fontsize=9.5, color=SLATE)
+        fig.text(
+            0.055, 0.915, str(subtitle), ha="left", va="top",
+            fontsize=9.2, color=SLATE,
+        )
 
 
 def _save(fig):
     out = BytesIO()
-    fig.savefig(out, format="png", dpi=190, bbox_inches="tight", facecolor=WHITE)
+    fig.savefig(
+        out, format="png", dpi=220, bbox_inches="tight",
+        facecolor=WHITE, pad_inches=0.12,
+    )
     plt.close(fig)
     out.seek(0)
     return out
 
 
-def _wrapped(text, width=25):
-    return "\n".join(textwrap.wrap(str(text), width=width, break_long_words=False))
+def _wrapped(text, width=22):
+    value = str(text or "").strip()
+    if not value:
+        return ""
+    return "\n".join(textwrap.wrap(value, width=width, break_long_words=False))
+
+
+def _card(ax, x, y, width, height, text, number=None, fill=LIGHT,
+          edge=GRID, fontsize=8.5):
+    ax.add_patch(FancyBboxPatch(
+        (x - width / 2, y - height / 2), width, height,
+        boxstyle="round,pad=0.012,rounding_size=0.025",
+        facecolor=fill, edgecolor=edge, linewidth=1.15,
+        zorder=3,
+    ))
+    if number is not None:
+        ax.add_patch(Circle(
+            (x - width / 2 + 0.035, y), 0.025,
+            facecolor=BLUE, edgecolor=WHITE, linewidth=1.0, zorder=5,
+        ))
+        ax.text(
+            x - width / 2 + 0.035, y, str(number),
+            ha="center", va="center", fontsize=7.2,
+            fontweight="bold", color=WHITE, zorder=6,
+        )
+        text_x = x - width / 2 + 0.075
+        available_width = width - 0.09
+    else:
+        text_x = x
+        available_width = width - 0.04
+    ax.text(
+        text_x, y, _wrapped(text, max(12, int(available_width * 95))),
+        ha="left" if number is not None else "center", va="center",
+        fontsize=fontsize, color=DARK, zorder=5,
+    )
+
+
+def _arrow(ax, start, end, color=SLATE, lw=1.15, style="-|>"):
+    ax.annotate(
+        "", xy=end, xytext=start,
+        arrowprops=dict(
+            arrowstyle=style, color=color, linewidth=lw,
+            shrinkA=0, shrinkB=0,
+            connectionstyle="arc3,rad=0",
+        ),
+        zorder=2,
+    )
 
 
 def flow_figure(title, steps):
-    """Sơ đồ quy trình dạng thẻ bước, tránh mũi tên chồng lên nội dung."""
+    """Sơ đồ quy trình tối giản, ưu tiên trình tự đọc thay vì chi tiết."""
     steps = [str(x).strip() for x in (steps or []) if str(x).strip()]
     if not steps:
         steps = ["Chưa có dữ liệu"]
@@ -71,123 +126,164 @@ def flow_figure(title, steps):
     n = len(steps)
     if n <= 5:
         cols = n
-        rows = 1
+    elif n <= 8:
+        cols = 4
     else:
         cols = 4
-        rows = math.ceil(n / cols)
+    rows = math.ceil(n / cols)
 
-    fig = _new_figure(12, 4.6 if rows == 1 else 6.4)
-    _header(fig, title, "Trình tự xử lý theo dữ liệu Case")
-    ax = fig.add_axes([0.055, 0.10, 0.89, 0.72])
+    height = 4.6 if rows == 1 else 6.2 if rows == 2 else 7.4
+    fig = _new_figure(11.4, height)
+    _header(
+        fig, title,
+        "Sơ đồ minh họa trình tự xử lý; chi tiết nghiệp vụ nằm trong bảng quy trình.",
+    )
+    ax = fig.add_axes([0.055, 0.12, 0.89, 0.72])
     ax.set_xlim(0, cols)
     ax.set_ylim(0, rows)
     ax.axis("off")
 
     positions = {}
     for row in range(rows):
-        indices = list(range(row * cols, min((row + 1) * cols, n)))
-        # Hàng kế tiếp chạy ngược chiều để tạo luồng ziczac dễ đọc.
+        start = row * cols
+        end = min((row + 1) * cols, n)
+        indices = list(range(start, end))
         if row % 2 == 1:
-            indices = list(reversed(indices))
+            indices.reverse()
+        count = len(indices)
         for col, idx in enumerate(indices):
-            positions[idx] = (col + 0.5, rows - row - 0.5)
+            x = (col + 0.5) if count == cols else (col + 0.5) + (cols - count) / 2
+            y = rows - row - 0.5
+            positions[idx] = (x, y)
 
+    card_w = 0.82 if cols >= 4 else 0.78
+    card_h = 0.44
     for idx in range(n):
         x, y = positions[idx]
-        card_w, card_h = 0.76, 0.42
-        ax.add_patch(FancyBboxPatch(
-            (x - card_w / 2, y - card_h / 2), card_w, card_h,
-            boxstyle="round,pad=0.025,rounding_size=0.06",
-            facecolor=LIGHT, edgecolor=GRID, linewidth=1.0,
-        ))
-        ax.text(
-            x - card_w / 2 + 0.07, y, str(idx + 1),
-            ha="center", va="center", fontsize=9, fontweight="bold", color=WHITE,
-            bbox=dict(boxstyle="circle,pad=0.28", facecolor=BLUE,
-                      edgecolor=WHITE, linewidth=1.2),
-        )
-        ax.text(
-            x - card_w / 2 + 0.17, y, _wrapped(steps[idx], 22),
-            ha="left", va="center", fontsize=8.6, color=DARK,
+        _card(
+            ax, x, y, card_w, card_h, steps[idx], idx + 1,
+            fontsize=8.2 if n > 8 else 8.5,
         )
 
-    # Nối từng bước bằng mũi tên ngắn nằm ngoài thẻ.
     for idx in range(n - 1):
         x1, y1 = positions[idx]
         x2, y2 = positions[idx + 1]
-        if abs(y1 - y2) < 0.1:
+        if abs(y1 - y2) < 0.05:
             direction = 1 if x2 > x1 else -1
-            start = (x1 + 0.39 * direction, y1)
-            end = (x2 - 0.39 * direction, y2)
+            _arrow(
+                ax,
+                (x1 + card_w / 2 + 0.015 * direction, y1),
+                (x2 - card_w / 2 - 0.015 * direction, y2),
+            )
         else:
+            # Chuyển hàng ở mép ngoài, tránh đường chéo xuyên qua thẻ.
             direction = 1 if x2 > x1 else -1
-            start = (x1 + 0.28 * direction, y1 - 0.21)
-            end = (x2 + 0.28 * direction, y2 + 0.21)
-        ax.annotate(
-            "", xy=end, xytext=start,
-            arrowprops=dict(arrowstyle="-|>", color=SLATE, linewidth=1.1,
-                            shrinkA=0, shrinkB=0),
-        )
+            edge_x = min(cols - 0.12, max(0.12, x1 + 0.42 * direction))
+            ax.plot(
+                [x1 + 0.36 * direction, edge_x, edge_x, x2 + 0.36 * direction],
+                [y1 - card_h / 2, y1 - 0.10, y2 + 0.10, y2 + card_h / 2],
+                color=SLATE, linewidth=1.05, zorder=1,
+            )
+            _arrow(
+                ax,
+                (x2 + 0.36 * direction, y2 + card_h / 2),
+                (x2 + card_w / 2 * (1 if x2 > x1 else -1), y2),
+            )
 
-    if rows > 1:
-        fig.text(0.055, 0.055,
-                 "Luồng đọc: từ trái sang phải, sau đó chuyển xuống hàng kế tiếp.",
-                 fontsize=8.5, color=SLATE)
+    fig.text(
+        0.055, 0.055,
+        "Hình dùng để minh họa luồng. Các chủ thể, dữ liệu, hệ thống và thời gian được trình bày trong bảng tương ứng.",
+        fontsize=8.3, color=SLATE,
+    )
     return _save(fig)
 
 
 def architecture_figure(case01):
-    """Kiến trúc dạng hub và spoke, có phân tầng dữ liệu."""
-    nodes = case01.get("architecture", {}).get("nodes", []) or ["FutureBank"]
+    """Sơ đồ kiến trúc liên minh: minh họa quan hệ, không nhồi quyền và dữ liệu."""
+    architecture = case01.get("architecture", {}) or {}
+    nodes = architecture.get("nodes", []) or ["FutureBank"]
     nodes = [str(x).strip() for x in nodes if str(x).strip()][:8]
 
-    fig = _new_figure(12, 7.0)
-    _header(fig, "Kiến trúc Blockchain liên minh",
-            "Các bên tham gia, sổ cái dùng chung và phân lớp dữ liệu")
-    ax = fig.add_axes([0.04, 0.07, 0.92, 0.80])
-    ax.set_xlim(0, 1); ax.set_ylim(0, 1); ax.axis("off")
+    fig = _new_figure(11.4, 7.0)
+    _header(
+        fig, "Kiến trúc Blockchain liên minh",
+        "Quan hệ giữa sổ cái dùng chung và các thành viên mạng.",
+    )
+    ax = fig.add_axes([0.045, 0.12, 0.91, 0.73])
+    ax.set_xlim(0, 1)
+    ax.set_ylim(0, 1)
+    ax.axis("off")
 
-    ledger = (0.50, 0.70)
     ax.add_patch(FancyBboxPatch(
-        (0.34, 0.63), 0.32, 0.14,
-        boxstyle="round,pad=0.02,rounding_size=0.025",
-        facecolor=LIGHT_BLUE, edgecolor=BLUE, linewidth=1.6,
+        (0.32, 0.69), 0.36, 0.13,
+        boxstyle="round,pad=0.018,rounding_size=0.025",
+        facecolor=LIGHT_BLUE, edgecolor=BLUE, linewidth=1.7,
     ))
-    ax.text(0.50, 0.70, "SỔ CÁI LIÊN MINH\nBlockchain liên minh",
-            ha="center", va="center", fontsize=12.5, fontweight="bold", color=NAVY)
+    ax.text(
+        0.50, 0.755, "SỔ CÁI LIÊN MINH",
+        ha="center", va="center", fontsize=14, fontweight="bold", color=NAVY,
+    )
+    ax.text(
+        0.50, 0.715, architecture.get("blockchain_type", "Blockchain liên minh"),
+        ha="center", va="center", fontsize=9.2, color=SLATE,
+    )
 
     positions = [
-        (0.13, 0.48), (0.38, 0.48), (0.62, 0.48), (0.87, 0.48),
-        (0.13, 0.28), (0.38, 0.28), (0.62, 0.28), (0.87, 0.28),
+        (0.13, 0.50), (0.37, 0.50), (0.63, 0.50), (0.87, 0.50),
+        (0.13, 0.28), (0.37, 0.28), (0.63, 0.28), (0.87, 0.28),
     ]
     for idx, node in enumerate(nodes):
         x, y = positions[idx]
-        ax.plot([ledger[0], x], [0.63, y + 0.055], color=GRID, linewidth=1.0, zorder=1)
-        ax.add_patch(FancyBboxPatch(
-            (x - 0.105, y - 0.045), 0.21, 0.09,
-            boxstyle="round,pad=0.015,rounding_size=0.018",
-            facecolor=WHITE, edgecolor="#AAB7C4", linewidth=1.0, zorder=2,
-        ))
-        ax.text(x, y, _wrapped(node, 18), ha="center", va="center",
-                fontsize=8.6, color=DARK, zorder=3)
+        ax.plot(
+            [0.50, x], [0.69, y + 0.045],
+            color="#AAB7C4", linewidth=1.0, zorder=1,
+        )
+        _card(ax, x, y, 0.19, 0.09, node, fontsize=8.6)
 
-    ax.add_patch(Rectangle((0.06, 0.045), 0.40, 0.105,
-                           facecolor=LIGHT, edgecolor=GRID, linewidth=1.0))
-    ax.add_patch(Rectangle((0.54, 0.045), 0.40, 0.105,
-                           facecolor=LIGHT_TEAL, edgecolor="#C7DDD8", linewidth=1.0))
-    ax.text(0.26, 0.108, "NGOÀI CHUỖI", ha="center", va="center",
-            fontsize=9.2, fontweight="bold", color=SLATE)
-    ax.text(0.26, 0.075, "KYC • hồ sơ • chứng từ • báo cáo",
-            ha="center", va="center", fontsize=8.6, color=DARK)
-    ax.text(0.74, 0.108, "TRÊN CHUỖI", ha="center", va="center",
-            fontsize=9.2, fontweight="bold", color=TEAL)
-    ax.text(0.74, 0.075, "trạng thái • bằng chứng • mã băm • giao dịch",
-            ha="center", va="center", fontsize=8.6, color=DARK)
+    # Hai lớp dữ liệu được minh họa riêng, không đưa danh mục dài vào các node.
+    ax.add_patch(FancyBboxPatch(
+        (0.07, 0.055), 0.39, 0.10,
+        boxstyle="round,pad=0.015,rounding_size=0.018",
+        facecolor=LIGHT, edgecolor=GRID, linewidth=1.0,
+    ))
+    ax.add_patch(FancyBboxPatch(
+        (0.54, 0.055), 0.39, 0.10,
+        boxstyle="round,pad=0.015,rounding_size=0.018",
+        facecolor=LIGHT_TEAL, edgecolor="#C7DDD8", linewidth=1.0,
+    ))
+    ax.text(0.265, 0.125, "NGOÀI CHUỖI", ha="center", va="center",
+            fontsize=9.3, fontweight="bold", color=SLATE)
+    ax.text(0.265, 0.083, "KYC • hồ sơ • chứng từ • báo cáo",
+            ha="center", va="center", fontsize=8.2, color=DARK)
+    ax.text(0.735, 0.125, "TRÊN CHUỖI", ha="center", va="center",
+            fontsize=9.3, fontweight="bold", color=TEAL)
+    ax.text(0.735, 0.083, "trạng thái • bằng chứng • mã băm • giao dịch",
+            ha="center", va="center", fontsize=8.2, color=DARK)
+
+    fig.text(
+        0.055, 0.025,
+        "Chi tiết quyền truy cập và phân loại dữ liệu được trình bày trong các bảng Case 01.",
+        fontsize=8.2, color=SLATE,
+    )
     return _save(fig)
 
 
+def _risk_fill(score):
+    if score <= 4:
+        return RISK_LOW
+    if score <= 9:
+        return RISK_MEDIUM
+    if score <= 15:
+        return RISK_HIGH
+    return RISK_CRITICAL
+
+
 def heatmap_figure(case01, case02, case03):
-    """Ma trận rủi ro 5x5, đánh số điểm để loại bỏ hiện tượng nhãn chồng nhau."""
+    """Ma trận rủi ro 5x5 chỉ minh họa vị trí rủi ro.
+
+    Tên rủi ro không đặt trong hình. Mỗi điểm có mã số và được giải thích
+    bằng Risk Register ngay sau hình trong báo cáo.
+    """
     points = []
     for source, rows in (
         ("Case 01", case01.get("risks", [])),
@@ -201,104 +297,127 @@ def heatmap_figure(case01, case02, case03):
             except (TypeError, ValueError):
                 continue
             if 1 <= probability <= 5 and 1 <= impact <= 5:
-                points.append((probability, impact, str(row.get("Rủi ro", "Rủi ro")), source))
+                points.append((probability, impact, source))
 
-    fig = _new_figure(11.5, 7.6)
-    _header(fig, "Ma trận rủi ro tích hợp",
-            "Mỗi điểm được đánh số; danh mục rủi ro đặt dưới biểu đồ để tránh chồng nhãn")
-    ax = fig.add_axes([0.09, 0.20, 0.84, 0.68])
-    ax.set_xlim(0.5, 5.5); ax.set_ylim(0.5, 5.5)
-    ax.set_xticks(range(1, 6)); ax.set_yticks(range(1, 6))
-    ax.set_xlabel("Mức độ tác động", labelpad=9, fontsize=10, color=DARK)
-    ax.set_ylabel("Xác suất xảy ra", labelpad=9, fontsize=10, color=DARK)
+    fig = _new_figure(9.6, 7.0)
+    _header(
+        fig, "Ma trận rủi ro tích hợp",
+        "Hình chỉ minh họa phân bố rủi ro; mã số được đối chiếu với Risk Register.",
+    )
+    ax = fig.add_axes([0.13, 0.24, 0.76, 0.62])
+    ax.set_xlim(0.5, 5.5)
+    ax.set_ylim(0.5, 5.5)
+    ax.set_xticks(range(1, 6))
+    ax.set_yticks(range(1, 6))
+    ax.set_xlabel("Mức độ tác động", labelpad=8, fontsize=10, color=DARK)
+    ax.set_ylabel("Xác suất xảy ra", labelpad=8, fontsize=10, color=DARK)
     ax.tick_params(length=0, labelsize=9, colors=SLATE)
-    for spine in ax.spines.values(): spine.set_visible(False)
+    for spine in ax.spines.values():
+        spine.set_visible(False)
 
     for probability in range(1, 6):
         for impact in range(1, 6):
-            score = probability * impact
-            if score <= 4:
-                fill = RISK_LOW
-            elif score <= 9:
-                fill = RISK_MEDIUM
-            elif score <= 15:
-                fill = RISK_HIGH
-            else:
-                fill = RISK_CRITICAL
             ax.add_patch(Rectangle(
                 (impact - 0.5, probability - 0.5), 1, 1,
-                facecolor=fill, edgecolor=WHITE, linewidth=2,
+                facecolor=_risk_fill(probability * impact),
+                edgecolor=WHITE, linewidth=1.7,
             ))
+            score = probability * impact
+            if score in (4, 9, 15, 25):
+                ax.text(
+                    impact, probability, str(score),
+                    ha="center", va="center", fontsize=6.8,
+                    color=SLATE, alpha=0.65,
+                )
 
     by_cell = defaultdict(list)
-    for idx, (probability, impact, name, source) in enumerate(points, 1):
-        by_cell[(probability, impact)].append((idx, name, source))
+    for idx, (probability, impact, source) in enumerate(points, 1):
+        by_cell[(probability, impact)].append((idx, source))
 
     for (probability, impact), cell_points in by_cell.items():
         count = len(cell_points)
         if count == 1:
             offsets = [(0, 0)]
         else:
+            radius = 0.19 if count <= 6 else 0.22
             offsets = [
-                (0.17 * math.cos(2 * math.pi * j / count),
-                 0.17 * math.sin(2 * math.pi * j / count))
+                (
+                    radius * math.cos(2 * math.pi * j / count),
+                    radius * math.sin(2 * math.pi * j / count),
+                )
                 for j in range(count)
             ]
-        for item, (dx, dy) in zip(cell_points, offsets):
-            idx, _, _ = item
-            ax.scatter(impact + dx, probability + dy, s=310,
-                       facecolor=NAVY, edgecolor=WHITE, linewidth=1.8, zorder=5)
-            ax.text(impact + dx, probability + dy, str(idx),
-                    ha="center", va="center", fontsize=8.2, fontweight="bold",
-                    color=WHITE, zorder=6)
+        for (idx, source), (dx, dy) in zip(cell_points, offsets):
+            ax.scatter(
+                impact + dx, probability + dy,
+                s=210, facecolor=NAVY, edgecolor=WHITE,
+                linewidth=1.5, zorder=5,
+            )
+            ax.text(
+                impact + dx, probability + dy, str(idx),
+                ha="center", va="center", fontsize=7.4,
+                fontweight="bold", color=WHITE, zorder=6,
+            )
 
-    fig.text(0.09, 0.135, "Danh mục rủi ro", fontsize=9.5,
-             fontweight="bold", color=NAVY)
-    if points:
-        chunks = [f"{idx}. {name} · {source}"
-                  for idx, (_, _, name, source) in enumerate(points, 1)]
-        midpoint = math.ceil(len(chunks) / 2)
-        lines = ["    ".join(chunks[:midpoint]), "    ".join(chunks[midpoint:])]
-        for i, line in enumerate(lines):
-            if line.strip():
-                fig.text(0.09, 0.105 - i * 0.026, line,
-                         fontsize=7.7, color=DARK)
-    else:
-        fig.text(0.09, 0.105, "Chưa có dữ liệu rủi ro hợp lệ.",
-                 fontsize=8, color=SLATE)
+    # Chú giải tối giản, không đưa tên rủi ro vào hình.
+    legend_y = 0.145
+    labels = [
+        (RISK_LOW, "Thấp"),
+        (RISK_MEDIUM, "Trung bình"),
+        (RISK_HIGH, "Cao"),
+        (RISK_CRITICAL, "Rất cao"),
+    ]
+    start_x = 0.18
+    for i, (fill, label) in enumerate(labels):
+        x = start_x + i * 0.17
+        fig.patches.append(Rectangle(
+            (x, legend_y), 0.018, 0.018,
+            transform=fig.transFigure, facecolor=fill,
+            edgecolor=GRID, linewidth=0.6,
+        ))
+        fig.text(x + 0.024, legend_y + 0.001, label,
+                 fontsize=8.2, color=DARK, va="bottom")
 
-    fig.text(0.09, 0.045,
-             "Điểm rủi ro trực quan = Xác suất × Tác động",
-             fontsize=8, color=SLATE)
+    fig.text(
+        0.18, 0.085,
+        "Số trong vòng tròn = mã rủi ro. Chi tiết tên, nguồn, kiểm soát và kế hoạch xử lý nằm trong Risk Register.",
+        fontsize=8.4, color=SLATE,
+    )
     return _save(fig)
 
 
 def roadmap_figure():
-    """Lộ trình triển khai ba giai đoạn."""
-    fig = _new_figure(11.5, 4.8)
-    _header(fig, "Lộ trình triển khai", "Từ kiểm chứng kỹ thuật đến triển khai chính thức")
-    ax = fig.add_axes([0.07, 0.18, 0.86, 0.60])
-    ax.set_xlim(0, 3); ax.set_ylim(0, 1); ax.axis("off")
+    """Lộ trình triển khai ba giai đoạn, chỉ giữ thông điệp chính."""
+    fig = _new_figure(11.2, 4.5)
+    _header(fig, "Lộ trình triển khai", "Ba giai đoạn từ kiểm chứng đến vận hành.")
+    ax = fig.add_axes([0.07, 0.19, 0.86, 0.58])
+    ax.set_xlim(0, 3)
+    ax.set_ylim(0, 1)
+    ax.axis("off")
+
     stages = [
-        (0.50, "01", "Kiểm chứng kỹ thuật", "Xác định kiến trúc và kiểm thử quy trình"),
-        (1.50, "02", "Thử nghiệm giới hạn", "Triển khai phạm vi nhỏ và đánh giá rủi ro"),
-        (2.50, "03", "Triển khai chính thức", "Mở rộng khi pháp lý, vận hành và kiểm soát đạt yêu cầu"),
+        (0.50, "01", "Kiểm chứng kỹ thuật", "Kiến trúc • dữ liệu • kiểm thử"),
+        (1.50, "02", "Thử nghiệm giới hạn", "Quy trình • kiểm soát • đánh giá"),
+        (2.50, "03", "Triển khai chính thức", "Vận hành • giám sát • mở rộng"),
     ]
-    for i, (x, number, title, desc) in enumerate(stages):
+    for i, (x, num, name, desc) in enumerate(stages):
         ax.add_patch(FancyBboxPatch(
-            (x - 0.38, 0.25), 0.76, 0.50,
-            boxstyle="round,pad=0.025,rounding_size=0.035",
-            facecolor=LIGHT if i != 1 else LIGHT_BLUE,
-            edgecolor=BLUE if i != 1 else NAVY,
-            linewidth=1.3,
+            (x - 0.35, 0.38), 0.70, 0.32,
+            boxstyle="round,pad=0.015,rounding_size=0.025",
+            facecolor=LIGHT, edgecolor=GRID, linewidth=1.2,
         ))
-        ax.text(x, 0.66, number, ha="center", va="center",
-                fontsize=11, fontweight="bold", color=BLUE)
-        ax.text(x, 0.51, title, ha="center", va="center",
-                fontsize=9.5, fontweight="bold", color=NAVY)
-        ax.text(x, 0.35, _wrapped(desc, 27), ha="center", va="center",
-                fontsize=7.7, color=DARK)
-        if i < len(stages) - 1:
-            ax.annotate("", xy=(x + 0.61, 0.50), xytext=(x + 0.40, 0.50),
-                        arrowprops=dict(arrowstyle="-|>", color=SLATE, linewidth=1.2))
+        ax.text(x, 0.64, num, ha="center", va="center",
+                fontsize=8.5, fontweight="bold", color=BLUE)
+        ax.text(x, 0.52, name, ha="center", va="center",
+                fontsize=10.3, fontweight="bold", color=NAVY)
+        ax.text(x, 0.29, desc, ha="center", va="center",
+                fontsize=8.2, color=SLATE)
+        if i < 2:
+            _arrow(ax, (x + 0.37, 0.54), (x + 0.63, 0.54))
+
+    fig.text(
+        0.07, 0.08,
+        "Các điều kiện chuyển giai đoạn và tiêu chí nghiệm thu được trình bày trong phần lộ trình của báo cáo.",
+        fontsize=8.2, color=SLATE,
+    )
     return _save(fig)
