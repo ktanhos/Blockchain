@@ -7,7 +7,7 @@ from services.report_builder import REPORT_SECTIONS, default_report, report_word
 from services.instruction_engine import validate_case01, validate_case02, validate_case03
 from services.consistency import check_consistency
 from services.report_quality import build_quality_report, quality_summary
-from services.report_docx_enhanced import build_docx
+from services.report_docx_renderer import build_docx
 from services.report_preview import preview_figures
 
 
@@ -48,7 +48,7 @@ def _save_report(project_id, student_id, profile, case01, case02, case03, report
 def _show_diagram_preview(case01, case02, case03):
     st.divider()
     st.markdown("### Xem trước sơ đồ trước khi tạo Word")
-    st.caption("Các hình dưới đây là đúng nguồn hình mà bộ xuất Word sử dụng. Nếu Word hiển thị không đúng, có thể chụp hoặc tải trực tiếp hình từ đây để đưa vào báo cáo thủ công.")
+    st.caption("Các hình dưới đây dùng cùng bộ dựng sơ đồ với bản Word. Nhãn được tách khỏi điểm dữ liệu khi có nhiều rủi ro trùng tọa độ.")
     figures = preview_figures(case01, case02, case03)
     names = list(figures.keys())
     tabs = st.tabs(names)
@@ -56,7 +56,13 @@ def _show_diagram_preview(case01, case02, case03):
         with tab:
             image = figures[name]
             st.image(image, width="stretch")
-            st.download_button(f"Tải hình {name}", data=image.getvalue(), file_name=f"{name.replace(' ', '_').replace('/', '_')}.png", mime="image/png", key=f"download_figure_{name}")
+            st.download_button(
+                f"Tải hình {name}",
+                data=image.getvalue(),
+                file_name=f"{name.replace(' ', '_').replace('/', '_')}.png",
+                mime="image/png",
+                key=f"download_figure_{name}",
+            )
 
 
 def render_report_builder(st_module, project_id, student_id, profile, financials, case01, case02, case03):
@@ -75,18 +81,21 @@ def render_report_builder(st_module, project_id, student_id, profile, financials
 
     st.markdown("## Report Builder")
     st.caption("Bộ xuất báo cáo 5 lớp: chuẩn hóa dữ liệu → chuẩn hóa nội dung → bảng Word thật → hình và mục lục tự động → Quality Gate trước khi xuất.")
+
     m1, m2, m3, m4 = st.columns(4)
     m1.metric("Instruction", f"{instruction_pct * 100:.0f}%")
     m2.metric("Số từ phân tích", f"{report_word_count(report):,}")
     m3.metric("Lỗi chất lượng", qs["errors"])
     m4.metric("Cảnh báo", qs["warnings"])
     st.progress(instruction_pct)
+
     if qs["errors"]:
         st.error(f"Quality Gate còn {qs['errors']} lỗi. Báo cáo chỉ nên dùng làm bản nháp cho đến khi xử lý xong.")
     elif qs["warnings"]:
         st.warning(f"Không còn lỗi cứng, nhưng còn {qs['warnings']} cảnh báo cần xem xét trước khi nộp.")
     else:
         st.success("Quality Gate đạt.")
+
     with st.expander("Quality Gate · Kiểm tra trước khi xuất", expanded=True):
         st.dataframe(pd.DataFrame(quality_checks), width="stretch", hide_index=True)
         st.caption("Cảnh báo không tự động biến thành lỗi. Các tiêu chí học thuật và liên kết Case vẫn phải được sinh viên kiểm tra.")
@@ -95,6 +104,7 @@ def render_report_builder(st_module, project_id, student_id, profile, financials
     selected = st.selectbox("Chọn phần đang viết", section_labels, key="report_section_selector")
     section = REPORT_SECTIONS[section_labels.index(selected)]
     sid = section["id"]
+
     left, right = st.columns([1.7, 1], gap="large")
     with left:
         st.markdown(f"### {section['title']}")
@@ -119,6 +129,7 @@ def render_report_builder(st_module, project_id, student_id, profile, financials
         if st.button("Lưu phần này", type="primary", key=f"save_report_{sid}"):
             _save_report(project_id, student_id, profile, case01, case02, case03, report)
             st.success("Đã lưu phần báo cáo.")
+
     with right:
         with st.container(border=True):
             st.markdown("### Trợ lý viết")
@@ -138,20 +149,27 @@ def render_report_builder(st_module, project_id, student_id, profile, financials
                 st.write(f"Công cụ huy động: {profile.get('funding_instrument', '')}")
             for title, rows in _records_for_section(sid, case01, case02, case03):
                 _show_records(title, rows)
+
     st.divider()
     st.markdown("### Xem trước cấu trúc báo cáo")
     st.caption("Bản xem trước dùng chính dữ liệu sẽ đi vào Word; không còn bước chuyển Markdown sang Word.")
     for i, s in enumerate(REPORT_SECTIONS, 1):
         with st.expander(f"{i}. {s['title']}", expanded=False):
             text = report.get(s["id"], "")
-            if text: st.write(text)
-            else: st.warning("Chưa có phần phân tích.")
-            for title, rows in _records_for_section(s["id"], case01, case02, case03): _show_records(title, rows)
+            if text:
+                st.write(text)
+            else:
+                st.warning("Chưa có phần phân tích.")
+            for title, rows in _records_for_section(s["id"], case01, case02, case03):
+                _show_records(title, rows)
+
     _show_diagram_preview(case01, case02, case03)
     _save_report(project_id, student_id, profile, case01, case02, case03, report)
+
     st.divider()
     st.markdown("### Tạo báo cáo Word")
     st.write("Bộ xuất mới dùng bảng Word thật, không thụt đầu dòng trong ô, tự chuyển bảng nhiều cột sang trang ngang, và dùng chính các sơ đồ đã xem trước ở trên.")
+
     if qs["errors"] == 0:
         docx_bytes = build_docx(profile, financials, case01, case02, case03, report, consistency, quality_checks)
         st.download_button("Tạo và tải báo cáo Word", data=docx_bytes, file_name=f"Bao_cao_Blockchain_{''.join(ch for ch in student_id if ch.isdigit())}.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document", width="stretch", type="primary")
@@ -159,5 +177,6 @@ def render_report_builder(st_module, project_id, student_id, profile, financials
         st.warning("Chưa bật nút báo cáo sẵn sàng nộp vì Quality Gate còn lỗi. Bạn vẫn có thể tạo bản nháp để kiểm tra bố cục.")
         draft_bytes = build_docx(profile, financials, case01, case02, case03, report, consistency, quality_checks)
         st.download_button("Tạo và tải bản nháp Word", data=draft_bytes, file_name=f"Bao_cao_Blockchain_{''.join(ch for ch in student_id if ch.isdigit())}_DRAFT.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document", width="stretch")
+
     project_json = {"student_id": student_id, "profile": profile, "financials": financials, "case01": case01, "case02": case02, "case03": case03, "report": report, "consistency": consistency, "quality": quality_checks}
     st.download_button("Sao lưu toàn bộ dự án", data=json.dumps(project_json, ensure_ascii=False, indent=2, default=str), file_name=f"Blockchain_Project_{''.join(ch for ch in student_id if ch.isdigit())}.json", mime="application/json", width="stretch")
