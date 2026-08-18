@@ -69,7 +69,9 @@ def render_report_builder(st_module, project_id, student_id, profile, financials
     left, right = st.columns([1.7, 1], gap="large")
     with left:
         st.markdown(f"### {section['title']}")
-        st.caption(f"Quy mô theo Instruction: {section['target_pages']}. {section['target_words']}")
+        target_words = section.get("target_words")
+        size_note = f" {target_words}." if target_words else ""
+        st.caption(f"Quy mô theo Instruction: {section['target_pages']}.{size_note}")
         with st.expander("Câu hỏi hướng dẫn", expanded=True):
             for i, question in enumerate(section["questions"], 1):
                 st.markdown(f"**{i}.** {question}")
