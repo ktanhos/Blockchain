@@ -1,3 +1,5 @@
+import streamlit as st
+
 INDUSTRIES = {
     0: "Năng lượng mặt trời",
     1: "Nông nghiệp công nghệ cao",
@@ -60,6 +62,18 @@ def build_case_profile(student_id: str) -> dict:
     d1, d2, d3, d4 = map(int, d)
     n = int(digits[-3:])
 
+    description = st.session_state.get("business_description", "")
+    st.markdown("### Mô tả hoạt động doanh nghiệp")
+    st.caption("Viết ngắn gọn doanh nghiệp làm gì, phục vụ ai, mô hình kinh doanh và vai trò của nền tảng. Nội dung này sẽ được dùng lại trong hồ sơ case và báo cáo.")
+    description = st.text_area(
+        "Doanh nghiệp này làm gì?",
+        value=description,
+        height=130,
+        key="business_description",
+        placeholder="Ví dụ: Đây là một startup hoạt động B2B trong lĩnh vực thiết bị y tế, xây dựng nền tảng kết nối nhà cung cấp và bệnh viện, hỗ trợ tạo đơn hàng, xác nhận giao dịch và quản lý dòng tiền.",
+        label_visibility="collapsed",
+    )
+
     return {
         "student_id": student_id,
         "D1": d1,
@@ -71,4 +85,5 @@ def build_case_profile(student_id: str) -> dict:
         "business_type": BUSINESS_TYPES[d3],
         "banking_problem": BANKING_PROBLEMS[d2],
         "funding_instrument": FUNDING_INSTRUMENTS[d1],
+        "business_description": description,
     }
