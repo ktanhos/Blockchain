@@ -11,5 +11,7 @@ from services.report_ui import render_report_builder
 
 
 def build_integrated_report(profile, financials, case01, case02, case03, consistency_results, *, project_id=None, student_id=None):
+    student_id = student_id or profile.get("student_id", "")
+    project_id = project_id or f"student_{''.join(ch for ch in student_id if ch.isdigit())}"
     render_report_builder(st, project_id, student_id, profile, financials, case01, case02, case03)
     st.stop()
