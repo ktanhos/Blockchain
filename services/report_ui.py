@@ -1,3 +1,4 @@
+import json
 import pandas as pd
 import streamlit as st
 
@@ -5,6 +6,7 @@ from database import load_project, save_project
 from services.report_builder import REPORT_SECTIONS, default_report, report_word_count, suggested_text, word_count
 from services.instruction_engine import validate_case01, validate_case02, validate_case03
 from services.consistency import check_consistency
+from services.report_docx import build_docx
 
 
 def _records_for_section(section_id, case01, case02, case03):
@@ -126,3 +128,10 @@ def render_report_builder(st_module, project_id, student_id, profile, financials
     if st.button("Lưu toàn bộ Report Builder", type="primary", key="save_all_report"):
         save_project(project_id, student_id, profile, case01, case02, case03, report)
         st.success("Đã lưu toàn bộ nội dung báo cáo.")
+
+    save_project(project_id, student_id, profile, case01, case02, case03, report)
+    docx_bytes = build_docx(profile, financials, case01, case02, case03, report, consistency)
+    st.download_button("Tải báo cáo Word để tiếp tục chỉnh sửa", data=docx_bytes, file_name=f"Bao_cao_Blockchain_{''.join(ch for ch in student_id if ch.isdigit())}.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document", width="stretch")
+
+    project_json = {"student_id": student_id, "profile": profile, "financials": financials, "case01": case01, "case02": case02, "case03": case03, "report": report, "consistency": consistency}
+    st.download_button("Sao lưu toàn bộ dự án", data=json.dumps(project_json, ensure_ascii=False, indent=2, default=str), file_name=f"Blockchain_Project_{''.join(ch for ch in student_id if ch.isdigit())}.json", mime="application/json", width="stretch")
