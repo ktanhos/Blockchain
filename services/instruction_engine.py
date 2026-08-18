@@ -74,7 +74,7 @@ def validate_case03(case03):
     case03 = case03 or {}
     lifecycle = case03.get("lifecycle", case03.get("token_lifecycle", []))
     risks = case03.get("risks", case03.get("risk_register", []))
-    scenarios = case03.get("scenarios", ["Cơ sở", "Tăng trưởng", "Suy giảm"] if case03.get("recommendation") else [])
+    scenarios = case03.get("scenarios", [])
     token_ok = bool(str(case03.get("token_name", "")).strip() and str(case03.get("token_code", "")).strip())
     term_sheet_ok = token_ok and bool(str(case03.get("asset_base", "")).strip())
     return {
@@ -82,7 +82,7 @@ def validate_case03(case03):
         "Token": token_ok,
         "Term Sheet": term_sheet_ok,
         "Token Lifecycle": check_requirement("Case 03", "Token Lifecycle", {"Token Lifecycle": lifecycle}),
-        "Smart Contract": True,
+        "Smart Contract": bool(case03.get("smart_contract")),
         "Investor Return": bool(case03.get("investor_return")),
         "Scenario": check_requirement("Case 03", "Scenario", {"Scenario": scenarios}),
         "Risk Register": check_requirement("Case 03", "Risk Register", {"Risk Register": risks}),
